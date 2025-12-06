@@ -55,7 +55,7 @@ echo "Cloning repository"
 git clone --depth 1 "$GITHUB_REPO" "$APP_DIR"
 cd "$APP_DIR"
 
-echo "Creating .env file"
+echo "Creating .env file (will open editor so you can edit/add secrets)"
 JWT_SECRET=$(openssl rand -hex 32)
 cat > .env <<EOF
 PORT=$PORT
@@ -63,14 +63,24 @@ JWT_SECRET=$JWT_SECRET
 # Optional Supabase variables
 SUPABASE_URL=$SUPABASE_URL
 SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+SUPABASE_SERVICE_KEY=
 EOF
+
+# Open editor so user can modify the .env (e.g. paste SUPABASE_SERVICE_KEY or change JWT_SECRET)
+: ${EDITOR:=nano}
+echo "Opening ".env" in editor ($EDITOR). Save and exit to continue."
+"$EDITOR" .env
+echo ".env updated."
 
 echo "Installing Node dependencies and building frontend"
 npm ci --no-audit --no-fund
 npm run build
 
-echo "Starting app with pm2"
-pm2 start server.js --name mundocerca --update-env --watch --env production || pm2 start server.js --name mundocerca --update-env
+echo "Starting app with pm2 (using npm start)"
+# Use npm start via pm2 so the project uses the official start script
+pm2 start npm --name mundocerca -- start || true
+pm2 save
+echo "PM2 start command executed. Saved process list."
 pm2 save
 pm2 startup systemd -u root --hp /root || true
 
