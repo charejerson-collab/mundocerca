@@ -1,0 +1,13 @@
+{
+  "cities": [
+    { "id": "tapachula", "name": "Tapachula", "state": "Chiapas" },
+    { "id": "cdmx", "name": "Ciudad de México", "state": "CDMX" }
+  ],
+  "listings": [
+    { "id": 101, "title": "Casa Familiar en Zona Norte", "price": 12000, "city_id": "tapachula", "category": "house", "bedrooms": 3, "bathrooms": 2, "description": "Hermosa casa cerca del centro.", "image": "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=1000" },
+    { "id": 1, "title": "Modern Apartment in Polanco", "price": 25000, "city_id": "cdmx", "category": "apartment", "bedrooms": 2, "bathrooms": 2, "description": "Beautiful apartment in the heart of Polanco.", "image": "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=1000" }
+  ],
+  "professionals": [
+    { "id": "p1", "name": "Lic. Marco Antonio", "title": "Immigration Specialist", "category": "legal", "city_id": "tapachula", "rating": 4.9, "verified": true }
+  ]
+}
