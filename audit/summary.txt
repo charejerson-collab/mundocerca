@@ -1,0 +1,39 @@
+# Password Reset Flow Audit - Summary
+
+## Current State: ❌ NOT IMPLEMENTED
+
+The "Forgot Password" / Reset Password flow is **completely missing** from this codebase.
+
+### What Exists:
+- **UI**: A non-functional "Forgot your password?" link in `src/components/Auth.jsx` (line 153)
+- **Backend**: No endpoints for password reset (`/api/auth/forgot`, `/api/auth/verify-otp`, `/api/auth/reset-password`)
+- **Database**: No table for storing OTPs/reset tokens
+- **Email Service**: Not configured (no nodemailer, SendGrid, etc.)
+
+### Files Examined:
+| File | Contains Password Reset? |
+|------|-------------------------|
+| `src/components/Auth.jsx` | ❌ Only a placeholder link |
+| `src/api.js` | ❌ No reset API methods |
+| `server.js` | ❌ No reset endpoints |
+| `data/seed.json` | ❌ No OTP table schema |
+
+### Critical Gaps:
+1. **No OTP generation** - No code to generate secure temporary codes
+2. **No OTP storage** - No database table for reset tokens
+3. **No email sending** - No integration with email service
+4. **No verification endpoint** - No API to verify OTP
+5. **No password update endpoint** - No API to set new password
+6. **No 60-second cooldown** - Neither client nor server
+7. **No rate limiting specific to reset** - General auth rate limit exists but not reset-specific
+
+### Security Implications:
+- Users cannot recover accounts if they forget passwords
+- The "Forgot your password?" link does nothing (broken UX)
+- No infrastructure for future 2FA/OTP features
+
+### Recommendation:
+Implement the complete flow from scratch using the patches provided in this audit.
+
+---
+Word count: 248

@@ -1,3 +1,83 @@
+/**
+ * AUTH.JSX DIFF - Update to integrate Forgot Password
+ * 
+ * This shows the changes needed to Auth.jsx to make the
+ * "Forgot your password?" link functional.
+ */
+
+// ============================================================================
+// OPTION 1: Add state to Auth.jsx to show ForgotPassword component
+// ============================================================================
+
+/*
+BEFORE (line 1-12):
+-------------------
+import React, { useState } from 'react';
+import api from '../api';
+import Input from './Input';
+import Button from './Button';
+
+export default function Auth({ onLogin }) {
+  const [mode, setMode] = useState('login');
+  ...
+}
+
+
+AFTER:
+------
+*/
+
+import React, { useState } from 'react';
+import api from '../api';
+import Input from './Input';
+import Button from './Button';
+import ForgotPassword from './ForgotPassword';  // ADD THIS
+
+export default function Auth({ onLogin }) {
+  const [mode, setMode] = useState('login');  // 'login' | 'register' | 'forgot'
+  // ... rest of existing state ...
+
+  // ADD: Handle forgot password flow
+  if (mode === 'forgot') {
+    return (
+      <ForgotPassword
+        onBack={() => setMode('login')}
+        onSuccess={() => setMode('login')}
+      />
+    );
+  }
+
+  // ... rest of existing component ...
+
+
+// ============================================================================
+// OPTION 2: Change line 153 to trigger mode change
+// ============================================================================
+
+/*
+BEFORE (line 153):
+------------------
+<a href="#" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Forgot your password?</a>
+
+
+AFTER:
+------
+*/
+
+<button 
+  type="button"
+  onClick={() => setMode('forgot')}
+  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+>
+  Forgot your password?
+</button>
+
+
+// ============================================================================
+// FULL UPDATED Auth.jsx FILE
+// ============================================================================
+
+/*
 import React, { useState } from 'react';
 import api from '../api';
 import Input from './Input';
@@ -179,3 +259,4 @@ export default function Auth({ onLogin }) {
     </div>
   );
 }
+*/
