@@ -12,6 +12,7 @@
     "postinstall": "echo 'Run npm run build for frontend and npm start for server in production'"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.87.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^8.0.1",
     "cors": "^2.8.5",

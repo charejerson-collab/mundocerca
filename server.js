@@ -11,11 +11,15 @@ import multer from 'multer';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { supabase, isSupabaseConfigured } from './lib/supabaseServer.js';
 dotenv.config();
 
-// If Supabase env vars are not configured we'll keep a null guard so
-// server code that checks `if (supabase)` doesn't throw a ReferenceError.
-const supabase = null;
+// Log Supabase status
+if (isSupabaseConfigured()) {
+  console.log('✅ Supabase connected - using PostgreSQL');
+} else {
+  console.log('ℹ️  Supabase not configured - using SQLite fallback');
+}
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
