@@ -1,15 +1,18 @@
 FROM node:18-alpine
 WORKDIR /app
 
-# install dependencies
+# install ALL dependencies (including dev deps needed for build)
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm install --production
+RUN npm ci
 
-# copy rest
+# copy rest of source code
 COPY . .
 
-# build frontend
+# build frontend (requires vite, tailwindcss, etc.)
 RUN npm run build
+
+# Remove dev dependencies after build to reduce image size
+RUN npm prune --production
 
 ENV NODE_ENV=production
 EXPOSE 3000
