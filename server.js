@@ -1,3 +1,9 @@
+// =============================================================================
+// MundoCerca Backend Server - Production Ready
+// =============================================================================
+// Architecture: Vercel (Frontend) → Railway (Backend) → Supabase (Database)
+// =============================================================================
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -11,18 +17,34 @@ import multer from 'multer';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
-import { supabase, isSupabaseConfigured } from './lib/supabaseServer.js';
+
+// Load environment variables
 dotenv.config();
 
-// Log Supabase status
-if (isSupabaseConfigured()) {
+// =============================================================================
+// CONFIGURATION
+// =============================================================================
+
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// Check if Supabase is configured
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const isSupabaseConfigured = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY;
+
+// Supabase client (lazy import if configured)
+let supabase = null;
+if (isSupabaseConfigured) {
+  const { createClient } = await import('@supabase/supabase-js');
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
   console.log('✅ Supabase connected - using PostgreSQL');
 } else {
   console.log('ℹ️  Supabase not configured - using SQLite fallback');
 }
-
-const PORT = process.env.PORT || 3000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // JWT_SECRET: Required in production, auto-generated for development
 let JWT_SECRET;
@@ -33,34 +55,70 @@ if (process.env.JWT_SECRET) {
   console.error('   Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"');
   process.exit(1);
 } else {
-  // Development only: auto-generate a secret (will change on restart)
   JWT_SECRET = crypto.randomBytes(32).toString('base64');
   console.warn('⚠️  WARNING: Using auto-generated JWT_SECRET. Set JWT_SECRET env var for persistent sessions.');
 }
+
+// Export for use in route modules
+export { supabase, JWT_SECRET, NODE_ENV };
+
+// =============================================================================
+// EXPRESS APP SETUP
+// =============================================================================
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname.replace(/^/, ''));
 const app = express();
 
 // Security middleware
 app.use(helmet({
-  contentSecurityPolicy: NODE_ENV === 'production' ? undefined : false, // Disable CSP in dev for hot reload
-  crossOriginEmbedderPolicy: false // Allow loading external images
+  contentSecurityPolicy: NODE_ENV === 'production' ? undefined : false,
+  crossOriginEmbedderPolicy: false
 }));
-app.use(cors());
+
+// CORS configuration for Vercel frontend
+const corsOptions = {
+  origin: NODE_ENV === 'production' 
+    ? [FRONTEND_URL, /\.vercel\.app$/] 
+    : true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
-// Rate limiting for auth endpoints (prevent brute force)
+// Rate limiting
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts per window
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: { error: 'Too many attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// ============================================================================
+// =============================================================================
+// AUTH MIDDLEWARE (exported for routes)
+// =============================================================================
+
+export function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+// =============================================================================
 // PASSWORD RESET CONFIGURATION
-// ============================================================================
+// =============================================================================
 
 const RESET_CONFIG = {
   OTP_LENGTH: 6,
@@ -71,9 +129,8 @@ const RESET_CONFIG = {
   MAX_REQUESTS_PER_IP_HOUR: parseInt(process.env.MAX_RESET_REQUESTS_PER_IP_HOUR || '10'),
 };
 
-// Per-IP rate limiter for reset requests
 const resetIpLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000,
   max: RESET_CONFIG.MAX_REQUESTS_PER_IP_HOUR,
   message: { error: 'Too many password reset requests. Please try again later.' },
   standardHeaders: true,
@@ -98,7 +155,7 @@ async function sendOtpEmail(email, otp) {
     from: process.env.SMTP_FROM || 'noreply@mundocerca.com',
     to: email,
     subject: 'Password Reset Code - MundoCerca',
-    text: `Your password reset code is: ${otp}\n\nThis code expires in ${RESET_CONFIG.OTP_TTL_MINUTES} minutes.\n\nIf you did not request this, please ignore this email.`,
+    text: `Your password reset code is: ${otp}\n\nThis code expires in ${RESET_CONFIG.OTP_TTL_MINUTES} minutes.`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #4F46E5;">Password Reset Request</h2>
@@ -107,7 +164,7 @@ async function sendOtpEmail(email, otp) {
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1F2937;">${otp}</span>
         </div>
         <p style="color: #6B7280;">This code expires in <strong>${RESET_CONFIG.OTP_TTL_MINUTES} minutes</strong>.</p>
-        <p style="color: #6B7280;">If you did not request this password reset, please ignore this email.</p>
+        <p style="color: #6B7280;">If you did not request this, please ignore this email.</p>
         <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 20px 0;">
         <p style="color: #9CA3AF; font-size: 12px;">MundoCerca - Your trusted marketplace</p>
       </div>
@@ -115,86 +172,55 @@ async function sendOtpEmail(email, otp) {
   };
 
   if (NODE_ENV === 'development' && !process.env.SMTP_HOST) {
-    console.log('📧 [DEV] OTP Email would be sent:');
-    console.log(`   To: ${email}`);
-    console.log(`   Code: ${otp}`);
+    console.log('📧 [DEV] OTP Email:', email, 'Code:', otp);
     return { messageId: 'dev-mock' };
   }
 
   return emailTransporter.sendMail(mailOptions);
 }
 
-// Generate secure OTP
 function generateSecureOtp() {
   return crypto.randomInt(100000, 999999).toString();
 }
 
-// Security event logging
 function logSecurityEvent(event, details) {
   const timestamp = new Date().toISOString();
   console.log(`[SECURITY] ${timestamp} | ${event} | ${JSON.stringify(details)}`);
 }
 
-// Check per-email rate limit and cooldown
-function checkEmailRateLimit(email) {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const stmt = db.prepare(`
-    SELECT COUNT(*) as count, MAX(created_at) as last_request
-    FROM password_resets
-    WHERE email = ? AND created_at > ?
-  `);
-  const result = stmt.get(email, oneHourAgo);
-  return {
-    requestsInLastHour: result.count,
-    lastRequestAt: result.last_request ? new Date(result.last_request) : null,
-  };
-}
+// =============================================================================
+// FILE UPLOADS
+// =============================================================================
 
-function checkCooldown(email) {
-  const stmt = db.prepare(`
-    SELECT created_at FROM password_resets
-    WHERE email = ?
-    ORDER BY created_at DESC
-    LIMIT 1
-  `);
-  const lastRequest = stmt.get(email);
-  
-  if (!lastRequest) return { allowed: true, waitSeconds: 0 };
-  
-  const lastTime = new Date(lastRequest.created_at).getTime();
-  const now = Date.now();
-  const elapsedSeconds = Math.floor((now - lastTime) / 1000);
-  const waitSeconds = Math.max(0, RESET_CONFIG.RESEND_COOLDOWN_SECONDS - elapsedSeconds);
-  
-  return {
-    allowed: waitSeconds === 0,
-    waitSeconds,
-  };
-}
-
-// uploads folder
 const uploadsDir = path.join(__dirname, 'data', 'uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) { cb(null, uploadsDir); },
-  filename: function (req, file, cb) {
-    const unique = Date.now() + '-' + Math.round(Math.random()*1e9);
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
     cb(null, `${unique}-${safeName}`);
   }
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-// serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'data', 'uploads')));
 
-// DB init
+// =============================================================================
+// SQLITE DATABASE (Fallback for local development)
+// =============================================================================
+
 const dbFile = path.join(__dirname, 'data', 'app.db');
 const seedFile = path.join(__dirname, 'data', 'seed.json');
 const needSeed = !fs.existsSync(dbFile);
+
+// Ensure data directory exists
+fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+
 const db = new Database(dbFile);
 
-// create tables
+// Create tables
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -258,61 +284,147 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 `);
 
-// seed
+// Seed database
 if (needSeed && fs.existsSync(seedFile)) {
   const seed = JSON.parse(fs.readFileSync(seedFile, 'utf8'));
   const insertListing = db.prepare('INSERT INTO listings (id,title,price,city_id,category,bedrooms,bathrooms,description,image) VALUES (?,?,?,?,?,?,?,?,?)');
   const insertPro = db.prepare('INSERT OR REPLACE INTO professionals (id,name,title,category,city_id,rating,verified) VALUES (?,?,?,?,?,?,?)');
   const insertUser = db.prepare('INSERT OR IGNORE INTO users (name,email,password) VALUES (?,?,?)');
 
-  const insertMany = db.transaction(() => {
+  db.transaction(() => {
     seed.listings.forEach(l => insertListing.run(l.id, l.title, l.price, l.city_id, l.category, l.bedrooms || 0, l.bathrooms || 0, l.description || '', l.image || ''));
     (seed.professionals || []).forEach(p => insertPro.run(p.id, p.name, p.title, p.category, p.city_id, p.rating || 0, p.verified ? 1 : 0));
-    // create a test user: test@example.com / password
     const pw = bcrypt.hashSync('password', 10);
-    insertUser.run('Test User','test@example.com', pw);
-  });
-  insertMany();
-  console.log('DB seeded');
+    insertUser.run('Test User', 'test@example.com', pw);
+  })();
+  console.log('✅ SQLite DB seeded');
 }
 
-// API Routes
-app.get('/api/ping', (req,res) => res.json({ok:true}));
+// Helper functions for SQLite fallback
+function checkEmailRateLimit(email) {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const stmt = db.prepare(`
+    SELECT COUNT(*) as count, MAX(created_at) as last_request
+    FROM password_resets
+    WHERE email = ? AND created_at > ?
+  `);
+  const result = stmt.get(email, oneHourAgo);
+  return {
+    requestsInLastHour: result.count,
+    lastRequestAt: result.last_request ? new Date(result.last_request) : null,
+  };
+}
 
-app.get('/api/listings', async (req,res) => {
-  if (supabase) {
-    const { data, error } = await supabase.from('listings').select('*').order('id', { ascending: false }).limit(100);
-    if (error) return res.status(500).json({ error: error.message });
-    return res.json(data || []);
+function checkCooldown(email) {
+  const stmt = db.prepare(`
+    SELECT created_at FROM password_resets
+    WHERE email = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
+  const lastRequest = stmt.get(email);
+  
+  if (!lastRequest) return { allowed: true, waitSeconds: 0 };
+  
+  const lastTime = new Date(lastRequest.created_at).getTime();
+  const now = Date.now();
+  const elapsedSeconds = Math.floor((now - lastTime) / 1000);
+  const waitSeconds = Math.max(0, RESET_CONFIG.RESEND_COOLDOWN_SECONDS - elapsedSeconds);
+  
+  return { allowed: waitSeconds === 0, waitSeconds };
+}
+
+// =============================================================================
+// API ROUTES
+// =============================================================================
+
+// Health check
+app.get('/api/ping', (req, res) => res.json({ ok: true, mode: isSupabaseConfigured ? 'supabase' : 'sqlite' }));
+app.get('/api/health', (req, res) => res.json({ status: 'healthy', env: NODE_ENV }));
+
+// =============================================================================
+// LISTINGS API
+// =============================================================================
+
+app.get('/api/listings', async (req, res) => {
+  try {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return res.json(data || []);
+    }
+    const stmt = db.prepare('SELECT * FROM listings ORDER BY id DESC LIMIT 100');
+    res.json(stmt.all());
+  } catch (err) {
+    console.error('Listings error:', err);
+    res.status(500).json({ error: 'Failed to fetch listings' });
   }
-  const stmt = db.prepare('SELECT * FROM listings ORDER BY id DESC LIMIT 100');
-  const rows = stmt.all();
-  res.json(rows);
 });
 
-app.get('/api/pros', async (req,res) => {
-  if (supabase) {
-    const { data, error } = await supabase.from('professionals').select('*').limit(100);
-    if (error) return res.status(500).json({ error: error.message });
-    return res.json(data || []);
+// =============================================================================
+// PROFESSIONALS API
+// =============================================================================
+
+app.get('/api/pros', async (req, res) => {
+  try {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('professionals')
+        .select('*')
+        .limit(100);
+      if (error) throw error;
+      return res.json(data || []);
+    }
+    const stmt = db.prepare('SELECT * FROM professionals LIMIT 100');
+    res.json(stmt.all());
+  } catch (err) {
+    console.error('Professionals error:', err);
+    res.status(500).json({ error: 'Failed to fetch professionals' });
   }
-  const stmt = db.prepare('SELECT * FROM professionals LIMIT 100');
-  res.json(stmt.all());
 });
 
-app.post('/api/auth/register', authLimiter, async (req,res) => {
+// =============================================================================
+// AUTH API
+// =============================================================================
+
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { name, email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   if (password.length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
+  
   const hashed = bcrypt.hashSync(password, 10);
+  
   try {
     if (supabase) {
-      const { data, error } = await supabase.from('users').insert({ name: name||'', email, password: hashed }).select().single();
-      if (error) return res.status(400).json({ error: error.message });
-      const user = { id: data.id, name: data.name, email: data.email };
+      // Use Supabase Auth for production
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name: name || '' }
+      });
+      
+      if (authError) return res.status(400).json({ error: authError.message });
+      
+      // Also store in users table for app data
+      await supabase.from('users').insert({
+        id: authData.user.id,
+        name: name || '',
+        email,
+        created_at: new Date().toISOString()
+      });
+      
+      const user = { id: authData.user.id, name, email };
       const token = jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
       return res.json({ user, token });
     }
+    
+    // SQLite fallback
     const stmt = db.prepare('INSERT INTO users (name,email,password) VALUES (?,?,?)');
     const info = stmt.run(name || '', email, hashed);
     const user = { id: info.lastInsertRowid, name, email };
@@ -323,30 +435,53 @@ app.post('/api/auth/register', authLimiter, async (req,res) => {
   }
 });
 
-app.post('/api/auth/login', authLimiter, async (req,res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
-  if (supabase) {
-    const { data, error } = await supabase.from('users').select('*').eq('email', email).limit(1).single();
-    if (error || !data) return res.status(400).json({ error: 'invalid credentials' });
-    const ok = bcrypt.compareSync(password, data.password);
+  
+  try {
+    if (supabase) {
+      // Use Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (authError) return res.status(400).json({ error: 'invalid credentials' });
+      
+      const user = { 
+        id: authData.user.id, 
+        email: authData.user.email, 
+        name: authData.user.user_metadata?.name || ''
+      };
+      const token = jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
+      return res.json({ user, token });
+    }
+    
+    // SQLite fallback
+    const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const user = stmt.get(email);
+    if (!user) return res.status(400).json({ error: 'invalid credentials' });
+    
+    const ok = bcrypt.compareSync(password, user.password);
     if (!ok) return res.status(400).json({ error: 'invalid credentials' });
-    const token = jwt.sign({ id: data.id, email: data.email, name: data.name }, JWT_SECRET, { expiresIn: '7d' });
-    return res.json({ user: { id: data.id, email: data.email, name: data.name }, token });
+    
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(400).json({ error: 'invalid credentials' });
   }
-  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
-  const user = stmt.get(email);
-  if (!user) return res.status(400).json({ error: 'invalid credentials' });
-  const ok = bcrypt.compareSync(password, user.password);
-  if (!ok) return res.status(400).json({ error: 'invalid credentials' });
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
 });
 
-// ============================================================================
-// PASSWORD RESET ENDPOINTS
-// ============================================================================
+// Session verification
+app.get('/api/auth/session', authMiddleware, (req, res) => {
+  res.json({ user: req.user });
+});
 
-// ENDPOINT 1: Request Password Reset
+// =============================================================================
+// PASSWORD RESET API
+// =============================================================================
+
 app.post('/api/auth/forgot-password', resetIpLimiter, async (req, res) => {
   const { email } = req.body;
   const clientIp = req.ip;
@@ -362,135 +497,124 @@ app.post('/api/auth/forgot-password', resetIpLimiter, async (req, res) => {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(normalizedEmail)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
 
   try {
-    // Check 60-second cooldown (SERVER-SIDE ENFORCEMENT)
-    const cooldown = checkCooldown(normalizedEmail);
-    if (!cooldown.allowed) {
-      logSecurityEvent('RESET_COOLDOWN_BLOCKED', { email: normalizedEmail, ip: clientIp, waitSeconds: cooldown.waitSeconds });
-      return res.status(429).json({ 
-        error: `Please wait ${cooldown.waitSeconds} seconds before requesting another code.`,
-        waitSeconds: cooldown.waitSeconds,
-      });
-    }
-
-    // Check hourly rate limit per email
-    const rateCheck = checkEmailRateLimit(normalizedEmail);
-    if (rateCheck.requestsInLastHour >= RESET_CONFIG.MAX_REQUESTS_PER_EMAIL_HOUR) {
-      logSecurityEvent('RESET_RATE_LIMIT_EMAIL', { email: normalizedEmail, ip: clientIp, count: rateCheck.requestsInLastHour });
-      return res.status(429).json({ error: 'Too many reset requests for this email. Please try again in 1 hour.' });
-    }
-
-    // Check if user exists
-    const userStmt = db.prepare('SELECT id, email, name FROM users WHERE email = ?');
-    const user = userStmt.get(normalizedEmail);
-
-    if (!user) {
-      logSecurityEvent('RESET_UNKNOWN_EMAIL', { email: normalizedEmail, ip: clientIp });
+    // Check per-email rate limit
+    const { requestsInLastHour } = checkEmailRateLimit(normalizedEmail);
+    if (requestsInLastHour >= RESET_CONFIG.MAX_REQUESTS_PER_EMAIL_HOUR) {
+      logSecurityEvent('RESET_RATE_LIMIT_EMAIL', { email: normalizedEmail, ip: clientIp });
       return res.json(genericResponse);
     }
 
-    // Invalidate all previous unused OTPs for this user
-    const invalidateStmt = db.prepare('UPDATE password_resets SET used = 1 WHERE email = ? AND used = 0');
-    invalidateStmt.run(normalizedEmail);
+    // Check cooldown
+    const { allowed, waitSeconds } = checkCooldown(normalizedEmail);
+    if (!allowed) {
+      return res.json({
+        ok: true,
+        message: `Please wait ${waitSeconds} seconds before requesting a new code.`,
+        waitSeconds,
+      });
+    }
 
-    // Generate secure OTP
+    // Find user
+    let user;
+    if (supabase) {
+      const { data } = await supabase.from('users').select('id, email').eq('email', normalizedEmail).single();
+      user = data;
+    } else {
+      user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(normalizedEmail);
+    }
+
+    if (!user) {
+      logSecurityEvent('RESET_UNKNOWN_EMAIL', { email: normalizedEmail, ip: clientIp });
+      await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+      return res.json(genericResponse);
+    }
+
+    // Generate and store OTP
     const otp = generateSecureOtp();
     const otpHash = bcrypt.hashSync(otp, 10);
     const expiresAt = new Date(Date.now() + RESET_CONFIG.OTP_TTL_MINUTES * 60 * 1000).toISOString();
 
-    // Store OTP
-    const insertStmt = db.prepare(`
+    db.prepare(`
       INSERT INTO password_resets (user_id, email, otp_hash, expires_at, ip_address)
       VALUES (?, ?, ?, ?, ?)
-    `);
-    insertStmt.run(user.id, normalizedEmail, otpHash, expiresAt, clientIp);
+    `).run(user.id, normalizedEmail, otpHash, expiresAt, clientIp);
 
     // Send email
-    try {
-      await sendOtpEmail(normalizedEmail, otp);
-      logSecurityEvent('RESET_OTP_SENT', { email: normalizedEmail, ip: clientIp });
-    } catch (emailErr) {
-      logSecurityEvent('RESET_EMAIL_FAILED', { email: normalizedEmail, ip: clientIp, error: emailErr.message });
-    }
+    await sendOtpEmail(normalizedEmail, otp);
+    logSecurityEvent('RESET_OTP_SENT', { email: normalizedEmail, ip: clientIp });
 
-    return res.json(genericResponse);
-
+    res.json(genericResponse);
   } catch (err) {
+    console.error('Forgot password error:', err);
     logSecurityEvent('RESET_ERROR', { email: normalizedEmail, ip: clientIp, error: err.message });
-    return res.status(500).json({ error: 'An error occurred. Please try again.' });
+    res.status(500).json({ error: 'An error occurred. Please try again.' });
   }
 });
 
-// ENDPOINT 2: Verify OTP
 app.post('/api/auth/verify-otp', authLimiter, async (req, res) => {
   const { email, otp } = req.body;
   const clientIp = req.ip;
 
   if (!email || !otp) {
-    return res.status(400).json({ error: 'Email and verification code are required' });
+    return res.status(400).json({ error: 'Email and OTP are required' });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    const stmt = db.prepare(`
-      SELECT * FROM password_resets
+    const record = db.prepare(`
+      SELECT * FROM password_resets 
       WHERE email = ? AND used = 0 AND expires_at > datetime('now')
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-    const resetRecord = stmt.get(normalizedEmail);
+      ORDER BY created_at DESC LIMIT 1
+    `).get(normalizedEmail);
 
-    if (!resetRecord) {
-      logSecurityEvent('VERIFY_NO_VALID_OTP', { email: normalizedEmail, ip: clientIp });
+    if (!record) {
       return res.status(400).json({ error: 'No valid reset request found. Please request a new code.' });
     }
 
-    if (resetRecord.attempts >= RESET_CONFIG.MAX_VERIFY_ATTEMPTS) {
-      db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(resetRecord.id);
-      logSecurityEvent('VERIFY_MAX_ATTEMPTS', { email: normalizedEmail, ip: clientIp, attempts: resetRecord.attempts });
-      return res.status(400).json({ error: 'Too many failed attempts. Please request a new code.' });
+    if (record.attempts >= RESET_CONFIG.MAX_VERIFY_ATTEMPTS) {
+      db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(record.id);
+      logSecurityEvent('RESET_MAX_ATTEMPTS', { email: normalizedEmail, ip: clientIp });
+      return res.status(400).json({ error: 'Too many attempts. Please request a new code.' });
     }
 
-    const isValid = bcrypt.compareSync(otp, resetRecord.otp_hash);
-
+    const isValid = bcrypt.compareSync(otp.trim(), record.otp_hash);
+    
     if (!isValid) {
-      db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?').run(resetRecord.id);
-      const remainingAttempts = RESET_CONFIG.MAX_VERIFY_ATTEMPTS - resetRecord.attempts - 1;
-      logSecurityEvent('VERIFY_FAILED', { email: normalizedEmail, ip: clientIp, attempts: resetRecord.attempts + 1 });
+      db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?').run(record.id);
+      const remaining = RESET_CONFIG.MAX_VERIFY_ATTEMPTS - record.attempts - 1;
+      logSecurityEvent('RESET_INVALID_OTP', { email: normalizedEmail, ip: clientIp, remaining });
       return res.status(400).json({ 
-        error: `Invalid code. ${remainingAttempts} attempts remaining.`,
-        remainingAttempts,
+        error: 'Invalid code',
+        attemptsRemaining: remaining
       });
     }
 
-    // OTP is valid! Generate a short-lived reset token
+    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenHash = bcrypt.hashSync(resetToken, 10);
-    const tokenExpiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const resetExpires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     db.prepare(`
-      UPDATE password_resets 
-      SET otp_hash = ?, expires_at = ?
+      UPDATE password_resets SET used = 1, reset_token_hash = ?, reset_token_expires = ?
       WHERE id = ?
-    `).run(resetTokenHash, tokenExpiresAt, resetRecord.id);
+    `).run(resetTokenHash, resetExpires, record.id);
 
-    logSecurityEvent('VERIFY_SUCCESS', { email: normalizedEmail, ip: clientIp });
+    logSecurityEvent('RESET_OTP_VERIFIED', { email: normalizedEmail, ip: clientIp });
 
-    return res.json({ 
-      ok: true, 
-      resetToken,
-      expiresIn: 300,
-    });
-
+    res.json({ ok: true, resetToken });
   } catch (err) {
-    logSecurityEvent('VERIFY_ERROR', { email: normalizedEmail, ip: clientIp, error: err.message });
-    return res.status(500).json({ error: 'An error occurred. Please try again.' });
+    console.error('Verify OTP error:', err);
+    res.status(500).json({ error: 'An error occurred. Please try again.' });
   }
 });
 
-// ENDPOINT 3: Reset Password
 app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
   const { email, resetToken, newPassword } = req.body;
   const clientIp = req.ip;
@@ -506,73 +630,57 @@ app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    const stmt = db.prepare(`
-      SELECT * FROM password_resets
-      WHERE email = ? AND used = 0 AND expires_at > datetime('now')
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-    const resetRecord = stmt.get(normalizedEmail);
+    const record = db.prepare(`
+      SELECT * FROM password_resets 
+      WHERE email = ? AND used = 1 AND reset_token_expires > datetime('now')
+      ORDER BY created_at DESC LIMIT 1
+    `).get(normalizedEmail);
 
-    if (!resetRecord) {
-      logSecurityEvent('RESET_EXPIRED_TOKEN', { email: normalizedEmail, ip: clientIp });
-      return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+    if (!record || !record.reset_token_hash) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
-    const isValid = bcrypt.compareSync(resetToken, resetRecord.otp_hash);
-
+    const isValid = bcrypt.compareSync(resetToken, record.reset_token_hash);
     if (!isValid) {
       logSecurityEvent('RESET_INVALID_TOKEN', { email: normalizedEmail, ip: clientIp });
-      return res.status(400).json({ error: 'Invalid reset token.' });
+      return res.status(400).json({ error: 'Invalid reset token' });
     }
 
     const hashedPassword = bcrypt.hashSync(newPassword, 10);
 
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, resetRecord.user_id);
-    db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(resetRecord.id);
-    db.prepare('UPDATE password_resets SET used = 1 WHERE user_id = ?').run(resetRecord.user_id);
+    if (supabase) {
+      await supabase.from('users').update({ password: hashedPassword }).eq('email', normalizedEmail);
+    } else {
+      db.prepare('UPDATE users SET password = ? WHERE email = ?').run(hashedPassword, normalizedEmail);
+    }
 
-    logSecurityEvent('RESET_PASSWORD_CHANGED', { email: normalizedEmail, ip: clientIp, userId: resetRecord.user_id });
+    // Invalidate reset token
+    db.prepare('UPDATE password_resets SET reset_token_hash = NULL WHERE id = ?').run(record.id);
 
-    return res.json({ ok: true, message: 'Password has been reset successfully.' });
+    logSecurityEvent('RESET_PASSWORD_CHANGED', { email: normalizedEmail, ip: clientIp });
 
+    res.json({ ok: true, message: 'Password reset successfully' });
   } catch (err) {
-    logSecurityEvent('RESET_ERROR', { email: normalizedEmail, ip: clientIp, error: err.message });
-    return res.status(500).json({ error: 'An error occurred. Please try again.' });
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'An error occurred. Please try again.' });
   }
 });
 
-// Verification upload endpoint (accepts multipart/form-data 'file')
+// =============================================================================
+// VERIFICATION UPLOAD
+// =============================================================================
+
 app.post('/api/verification-upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'no_file' });
-  // In a real app, store metadata in DB, associate with user, and trigger review workflow
   const publicPath = `/uploads/${req.file.filename}`;
   res.json({ ok: true, path: publicPath, filename: req.file.filename });
 });
 
-// ============================================================================
-// SUBSCRIPTION ENDPOINTS
-// ============================================================================
+// =============================================================================
+// SUBSCRIPTION API
+// =============================================================================
 
-// Auth middleware
-function authMiddleware(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-}
-
-// Activate subscription
-app.post('/api/subscription/activate', authMiddleware, (req, res) => {
+app.post('/api/subscription/activate', authMiddleware, async (req, res) => {
   const { plan } = req.body;
   const userId = req.user.id;
   
@@ -582,16 +690,47 @@ app.post('/api/subscription/activate', authMiddleware, (req, res) => {
   }
   
   try {
-    // Check if user already has an active subscription
+    if (supabase) {
+      // Check existing subscription
+      const { data: existing } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .single();
+      
+      if (existing) {
+        return res.status(400).json({ error: 'You already have an active subscription' });
+      }
+      
+      const freeMonthEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const { data: subscription, error } = await supabase
+        .from('subscriptions')
+        .insert({
+          user_id: userId,
+          plan_id: plan, // Adjust to match your schema
+          status: 'active',
+          start_date: new Date().toISOString(),
+          free_month_ends: freeMonthEnds,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      logSecurityEvent('SUBSCRIPTION_ACTIVATED', { userId, plan });
+      return res.json({ ok: true, subscription });
+    }
+    
+    // SQLite fallback
     const existingSub = db.prepare('SELECT * FROM subscriptions WHERE user_id = ? AND status = ?').get(userId, 'active');
     if (existingSub) {
       return res.status(400).json({ error: 'You already have an active subscription' });
     }
     
-    // Calculate free month end date (30 days from now)
     const freeMonthEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     
-    // Create subscription
     const stmt = db.prepare(`
       INSERT INTO subscriptions (user_id, plan, status, free_month_applied, start_date, free_month_ends)
       VALUES (?, ?, 'active', 1, datetime('now'), ?)
@@ -609,29 +748,30 @@ app.post('/api/subscription/activate', authMiddleware, (req, res) => {
     };
     
     logSecurityEvent('SUBSCRIPTION_ACTIVATED', { userId, plan });
-    
-    res.json({ 
-      ok: true, 
-      subscription,
-      user: {
-        ...req.user,
-        subscriptionActive: true,
-        subscriptionPlan: plan,
-        subscriptionStartDate: subscription.startDate,
-        freeMonthEnds,
-      }
-    });
+    res.json({ ok: true, subscription });
   } catch (err) {
     console.error('Subscription error:', err);
     res.status(500).json({ error: 'Failed to activate subscription' });
   }
 });
 
-// Get user subscription
-app.get('/api/subscription', authMiddleware, (req, res) => {
+app.get('/api/subscription', authMiddleware, async (req, res) => {
   const userId = req.user.id;
   
   try {
+    if (supabase) {
+      const { data: subscription } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      return res.json({ subscription: subscription || null });
+    }
+    
     const subscription = db.prepare(`
       SELECT * FROM subscriptions 
       WHERE user_id = ? AND status = 'active'
@@ -659,13 +799,216 @@ app.get('/api/subscription', authMiddleware, (req, res) => {
   }
 });
 
-// Serve frontend in production (after `npm run build`)
+// =============================================================================
+// PROPERTIES API (Supabase only - full CRUD)
+// =============================================================================
+
+if (isSupabaseConfigured) {
+  app.get('/api/properties', async (req, res) => {
+    try {
+      const { city_id, category, min_price, max_price, limit = 50, offset = 0 } = req.query;
+      
+      let query = supabase
+        .from('properties')
+        .select('*, landlords(id, business_name)')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + parseInt(limit) - 1);
+      
+      if (city_id) query = query.eq('city_id', city_id);
+      if (category) query = query.eq('category', category);
+      if (min_price) query = query.gte('price', parseInt(min_price));
+      if (max_price) query = query.lte('price', parseInt(max_price));
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      res.json({ properties: data || [], count: data?.length || 0 });
+    } catch (err) {
+      console.error('Properties error:', err);
+      res.status(500).json({ error: 'Failed to fetch properties' });
+    }
+  });
+
+  app.get('/api/properties/:id', async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*, landlords(id, business_name, verified)')
+        .eq('id', req.params.id)
+        .single();
+      
+      if (error || !data) {
+        return res.status(404).json({ error: 'Property not found' });
+      }
+      
+      res.json({ property: data });
+    } catch (err) {
+      console.error('Property error:', err);
+      res.status(500).json({ error: 'Failed to fetch property' });
+    }
+  });
+
+  app.post('/api/properties', authMiddleware, async (req, res) => {
+    try {
+      const { title, description, price, city_id, category, bedrooms, bathrooms, image_url, whatsapp } = req.body;
+      
+      if (!title || !price || !city_id || !category) {
+        return res.status(400).json({ error: 'Title, price, city_id, and category are required' });
+      }
+      
+      // Get or create landlord
+      let { data: landlord } = await supabase
+        .from('landlords')
+        .select('id')
+        .eq('user_id', req.user.id)
+        .single();
+      
+      if (!landlord) {
+        const { data: newLandlord, error } = await supabase
+          .from('landlords')
+          .insert({ user_id: req.user.id, business_name: req.user.name })
+          .select('id')
+          .single();
+        
+        if (error) throw error;
+        landlord = newLandlord;
+      }
+      
+      const { data: property, error } = await supabase
+        .from('properties')
+        .insert({
+          landlord_id: landlord.id,
+          title,
+          description: description || '',
+          price: parseInt(price),
+          city_id,
+          category,
+          bedrooms: parseInt(bedrooms || 0),
+          bathrooms: parseInt(bathrooms || 0),
+          image_url,
+          whatsapp,
+          is_active: true,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      res.status(201).json({ property, message: 'Property created successfully' });
+    } catch (err) {
+      console.error('Create property error:', err);
+      res.status(500).json({ error: 'Failed to create property' });
+    }
+  });
+
+  app.put('/api/properties/:id', authMiddleware, async (req, res) => {
+    try {
+      // Get landlord
+      const { data: landlord } = await supabase
+        .from('landlords')
+        .select('id')
+        .eq('user_id', req.user.id)
+        .single();
+      
+      if (!landlord) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+      
+      // Check ownership
+      const { data: existing } = await supabase
+        .from('properties')
+        .select('landlord_id')
+        .eq('id', req.params.id)
+        .single();
+      
+      if (!existing || existing.landlord_id !== landlord.id) {
+        return res.status(403).json({ error: 'Not authorized to update this property' });
+      }
+      
+      const allowedFields = ['title', 'description', 'price', 'city_id', 'category', 'bedrooms', 'bathrooms', 'image_url', 'whatsapp', 'is_active'];
+      const updates = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+      updates.updated_at = new Date().toISOString();
+      
+      const { data: property, error } = await supabase
+        .from('properties')
+        .update(updates)
+        .eq('id', req.params.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      res.json({ property, message: 'Property updated successfully' });
+    } catch (err) {
+      console.error('Update property error:', err);
+      res.status(500).json({ error: 'Failed to update property' });
+    }
+  });
+
+  app.delete('/api/properties/:id', authMiddleware, async (req, res) => {
+    try {
+      const { data: landlord } = await supabase
+        .from('landlords')
+        .select('id')
+        .eq('user_id', req.user.id)
+        .single();
+      
+      if (!landlord) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+      
+      const { data: existing } = await supabase
+        .from('properties')
+        .select('landlord_id')
+        .eq('id', req.params.id)
+        .single();
+      
+      if (!existing || existing.landlord_id !== landlord.id) {
+        return res.status(403).json({ error: 'Not authorized to delete this property' });
+      }
+      
+      // Soft delete
+      const { error } = await supabase
+        .from('properties')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', req.params.id);
+      
+      if (error) throw error;
+      
+      res.json({ message: 'Property deleted successfully' });
+    } catch (err) {
+      console.error('Delete property error:', err);
+      res.status(500).json({ error: 'Failed to delete property' });
+    }
+  });
+}
+
+// =============================================================================
+// STATIC FILES & SPA FALLBACK
+// =============================================================================
+
 app.use(express.static(path.join(__dirname, 'dist')));
-app.get('*', (req,res) => {
-  // fall back to index.html
+
+app.get('*', (req, res) => {
   const index = path.join(__dirname, 'dist', 'index.html');
   if (fs.existsSync(index)) return res.sendFile(index);
   res.status(404).send('Not found');
 });
 
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+// =============================================================================
+// START SERVER
+// =============================================================================
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT} (${NODE_ENV})`);
+  console.log(`   Database: ${isSupabaseConfigured ? 'Supabase PostgreSQL' : 'SQLite fallback'}`);
+  if (NODE_ENV === 'development') {
+    console.log(`   Frontend: ${FRONTEND_URL}`);
+  }
+});
