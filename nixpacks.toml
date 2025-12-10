@@ -1,0 +1,14 @@
+# Nixpacks configuration for Railway
+# This tells Railway to build from the backend directory
+
+[phases.setup]
+nixPkgs = ["nodejs_18"]
+
+[phases.install]
+cmds = ["cd backend && npm ci --omit=dev || cd backend && npm install --omit=dev"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "cd backend && node server.js"
