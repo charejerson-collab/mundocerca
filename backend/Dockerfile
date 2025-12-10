@@ -1,19 +1,36 @@
+# =============================================================================
+# MundoCerca Backend - Dockerfile for Railway Deployment
+# =============================================================================
+# Architecture: Frontend (Vercel) → Backend API (Railway) → Supabase (Postgres)
+# =============================================================================
+
 FROM node:18-alpine
+
+# Set working directory
 WORKDIR /app
 
-# install ALL dependencies (including dev deps needed for build)
+# Copy package files first (for better layer caching)
 COPY package.json package-lock.json* ./
-RUN npm ci
 
-# copy rest of source code
-COPY . .
+# Install production dependencies only
+RUN npm ci --omit=dev
 
-# build frontend (requires vite, tailwindcss, etc.)
-RUN npm run build
+# Copy application source code
+COPY server.js ./
+COPY stripe.js ./
+COPY data/ ./data/
+COPY supabase/ ./supabase/
 
-# Remove dev dependencies after build to reduce image size
-RUN npm prune --production
-
+# Set environment variables
 ENV NODE_ENV=production
+ENV PORT=3000
+
+# Expose the port
 EXPOSE 3000
-CMD ["node","server.js"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/ping || exit 1
+
+# Start the server
+CMD ["node", "server.js"]
