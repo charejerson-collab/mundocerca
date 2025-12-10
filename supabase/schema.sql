@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS public.users (
 -- Enable RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies to allow re-running
+DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
+DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.users;
+
 -- Users can read their own data
 CREATE POLICY "Users can view own profile" ON public.users
   FOR SELECT USING (auth.uid() = id);
@@ -63,6 +68,13 @@ CREATE TABLE IF NOT EXISTS public.listings (
 -- Enable RLS
 ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies to allow re-running
+DROP POLICY IF EXISTS "Anyone can view active listings" ON public.listings;
+DROP POLICY IF EXISTS "Owners can view own listings" ON public.listings;
+DROP POLICY IF EXISTS "Owners can create listings" ON public.listings;
+DROP POLICY IF EXISTS "Owners can update own listings" ON public.listings;
+DROP POLICY IF EXISTS "Owners can delete own listings" ON public.listings;
+
 -- Anyone can view active listings
 CREATE POLICY "Anyone can view active listings" ON public.listings
   FOR SELECT USING (is_active = true);
@@ -98,7 +110,7 @@ CREATE TABLE IF NOT EXISTS public.professionals (
   name TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  category TEXT NOT NULL CHECK (category IN ('legal', 'medical', 'trades', 'notary')),
+  category TEXT NOT NULL CHECK (category IN ('legal', 'health', 'home', 'finance')),
   city_id TEXT NOT NULL,
   rating DECIMAL(2,1) DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
   verified BOOLEAN DEFAULT false,
@@ -111,6 +123,10 @@ CREATE TABLE IF NOT EXISTS public.professionals (
 
 -- Enable RLS
 ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies to allow re-running
+DROP POLICY IF EXISTS "Anyone can view active professionals" ON public.professionals;
+DROP POLICY IF EXISTS "Professionals can update own profile" ON public.professionals;
 
 -- Anyone can view active verified professionals
 CREATE POLICY "Anyone can view active professionals" ON public.professionals
@@ -144,6 +160,11 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
 
 -- Enable RLS
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies to allow re-running
+DROP POLICY IF EXISTS "Users can view own subscriptions" ON public.subscriptions;
+DROP POLICY IF EXISTS "Users can create own subscriptions" ON public.subscriptions;
+DROP POLICY IF EXISTS "Users can update own subscriptions" ON public.subscriptions;
 
 -- Users can view their own subscriptions
 CREATE POLICY "Users can view own subscriptions" ON public.subscriptions
@@ -181,8 +202,9 @@ CREATE TABLE IF NOT EXISTS public.password_resets (
 -- Enable RLS (only service role should access this)
 ALTER TABLE public.password_resets ENABLE ROW LEVEL SECURITY;
 
--- No public access - only via service role
--- This table is managed by the backend server
+-- Service role has full access (backend server uses service role key)
+-- No policies needed - service role bypasses RLS by default
+-- Authenticated users have NO access to this table
 
 -- Index for faster queries
 CREATE INDEX IF NOT EXISTS idx_password_resets_email ON public.password_resets(email);
@@ -207,6 +229,10 @@ CREATE TABLE IF NOT EXISTS public.verification_documents (
 -- Enable RLS
 ALTER TABLE public.verification_documents ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies to allow re-running
+DROP POLICY IF EXISTS "Users can view own documents" ON public.verification_documents;
+DROP POLICY IF EXISTS "Users can upload own documents" ON public.verification_documents;
+
 -- Users can view their own documents
 CREATE POLICY "Users can view own documents" ON public.verification_documents
   FOR SELECT USING (auth.uid() = user_id);
@@ -230,6 +256,7 @@ CREATE TABLE IF NOT EXISTS public.cities (
 -- Enable RLS (public read)
 ALTER TABLE public.cities ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view cities" ON public.cities;
 CREATE POLICY "Anyone can view cities" ON public.cities
   FOR SELECT USING (is_active = true);
 
@@ -255,19 +282,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers for updated_at
+-- Triggers for updated_at (drop first to allow re-running)
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON public.users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_listings_updated_at ON public.listings;
 CREATE TRIGGER update_listings_updated_at
   BEFORE UPDATE ON public.listings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_professionals_updated_at ON public.professionals;
 CREATE TRIGGER update_professionals_updated_at
   BEFORE UPDATE ON public.professionals
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_subscriptions_updated_at ON public.subscriptions;
 CREATE TRIGGER update_subscriptions_updated_at
   BEFORE UPDATE ON public.subscriptions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
