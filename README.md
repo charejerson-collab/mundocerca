@@ -1,52 +1,52 @@
-# Mundo Cerca — Rental Marketplace MVP
+# MundoCerca
 
-This repository contains a minimal MVP for a rental marketplace: a Vite + React frontend and an Express backend with SQLite for lightweight persistence.
+A rental and professional services marketplace for migrants in Mexico.
 
-Quick start (development):
+## Project Structure
 
-1. Install dependencies:
+```
+mundocerca/
+├── frontend/          # Vite + React (Deploy to Vercel)
+│   ├── src/
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
+│
+├── backend/           # Express + Node.js (Deploy to Railway)
+│   ├── server.js
+│   ├── package.json
+│   ├── Dockerfile
+│   └── supabase/      # Database schema
+│
+└── README.md
+```
 
-```powershell
-cd "c:\Users\work from home\Pictures\mundocerca_app"
+## Deployment
+
+### Frontend (Vercel)
+1. Import repo to Vercel
+2. Set **Root Directory** to `frontend`
+3. Framework: Vite
+4. Add env var: `VITE_API_URL=https://your-backend.up.railway.app`
+
+### Backend (Railway)
+1. Import repo to Railway
+2. Set **Root Directory** to `backend`
+3. Add env vars (see `backend/.env.example`)
+
+### Database (Supabase)
+Run `backend/supabase/schema.sql` in Supabase SQL Editor.
+
+## Local Development
+
+```bash
+# Frontend
+cd frontend
 npm install
-```
+npm run dev
 
-2. Start backend (dev) and frontend dev server (two terminals):
-
-Terminal 1 (backend):
-```powershell
-npm run start:dev
-```
-
-Terminal 2 (frontend):
-```powershell
+# Backend
+cd backend
+npm install
 npm run dev
 ```
-
-Open http://localhost:5173 to view the frontend during development. API runs on port 3000.
-
-Production build and run:
-
-```powershell
-npm run build
-npm start
-```
-
-Or build and run via Docker:
-
-```powershell
-docker build -t mundocerca-mvp .
-docker run -p 3000:3000 mundocerca-mvp
-```
-
-API endpoints:
-- `GET /api/listings` — list of listings
-- `GET /api/pros` — list of professionals
-- `POST /api/auth/register` — register (body: name,email,password)
-- `POST /api/auth/login` — login (body: email,password)
-
-Notes & next steps:
-- Replace `JWT_SECRET` with a secure value via `.env` in production.
-- Add file upload handling (multer) for verification documents.
-- Integrate payments (Stripe) if you want paid verification or featured listings.
-- Add CI, tests, and automated database migrations for production readiness.
