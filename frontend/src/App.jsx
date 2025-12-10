@@ -528,7 +528,7 @@ export default function App() {
 
   // Render full-page views
   if (view === 'plans') {
-    return <PlansPage setView={setView} setSelectedPlan={setSelectedPlan} lang={lang} />;
+    return <PlansPage setView={setView} setSelectedPlan={setSelectedPlan} lang={lang} user={user} />;
   }
   if (view === 'create-account') {
     return <CreateAccountPage selectedPlan={selectedPlan} setView={setView} setUser={setUser} lang={lang} />;

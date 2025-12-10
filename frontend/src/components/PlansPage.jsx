@@ -1,5 +1,6 @@
-import React from 'react';
-import { Check, Package, Rocket, Building2, Shield, Users, TrendingUp, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, Package, Rocket, Building2, Shield, Users, TrendingUp, Sparkles, Loader } from 'lucide-react';
+import api from '../api';
 
 const PLANS = [
   {
@@ -52,10 +53,38 @@ const WHY_JOIN = [
   { icon: Sparkles, text: 'Simple setup, professional dashboard, full control' }
 ];
 
-export default function PlansPage({ setView, setSelectedPlan, lang }) {
-  const handleSelectPlan = (planId) => {
-    setSelectedPlan(planId);
-    setView('create-account');
+export default function PlansPage({ setView, setSelectedPlan, lang, user }) {
+  const [loading, setLoading] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleSelectPlan = async (planId) => {
+    // If user is not logged in, redirect to create account with selected plan
+    if (!user) {
+      setSelectedPlan(planId);
+      setView('create-account');
+      return;
+    }
+
+    // If user is logged in, create Stripe checkout session
+    setLoading(planId);
+    setError(null);
+
+    try {
+      const response = await api.createCheckoutSession(planId);
+      
+      if (response.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = response.url;
+      } else {
+        throw new Error('No checkout URL received');
+      }
+    } catch (err) {
+      console.error('Checkout error:', err);
+      setError(lang === 'en' 
+        ? 'Failed to start checkout. Please try again.' 
+        : 'Error al iniciar el pago. Por favor intenta de nuevo.');
+      setLoading(null);
+    }
   };
 
   return (
@@ -81,6 +110,11 @@ export default function PlansPage({ setView, setSelectedPlan, lang }) {
 
       {/* Plans Grid */}
       <div className="max-w-6xl mx-auto px-4 pb-16">
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-center">
+            {error}
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {PLANS.map((plan) => {
             const Icon = plan.icon;
@@ -134,13 +168,21 @@ export default function PlansPage({ setView, setSelectedPlan, lang }) {
 
                 <button
                   onClick={() => handleSelectPlan(plan.id)}
-                  className={`w-full py-4 rounded-xl font-semibold transition-all ${
+                  disabled={loading === plan.id}
+                  className={`w-full py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
                     plan.highlight
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-200'
-                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-200 disabled:opacity-70'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200 disabled:opacity-70'
                   }`}
                 >
-                  {lang === 'en' ? `Select ${plan.name}` : `Seleccionar ${plan.name}`}
+                  {loading === plan.id ? (
+                    <>
+                      <Loader size={20} className="animate-spin" />
+                      {lang === 'en' ? 'Processing...' : 'Procesando...'}
+                    </>
+                  ) : (
+                    lang === 'en' ? `Select ${plan.name}` : `Seleccionar ${plan.name}`
+                  )}
                 </button>
               </div>
             );

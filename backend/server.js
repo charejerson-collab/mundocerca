@@ -21,6 +21,15 @@ import nodemailer from 'nodemailer';
 // Load environment variables
 dotenv.config();
 
+// Import Stripe handlers
+import { 
+  createCheckoutSession, 
+  createPortalSession, 
+  handleWebhook,
+  getSubscriptionStatus,
+  PLANS 
+} from './stripe.js';
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -87,6 +96,11 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 app.use(cors(corsOptions));
+
+// Stripe webhook needs raw body - must be before express.json()
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+
+// Parse JSON for all other routes
 app.use(express.json());
 
 // Rate limiting
@@ -679,7 +693,25 @@ app.post('/api/verification-upload', upload.single('file'), (req, res) => {
 });
 
 // =============================================================================
-// SUBSCRIPTION API
+// STRIPE PAYMENT API
+// =============================================================================
+
+// Create Stripe Checkout Session for subscription
+app.post('/api/stripe/create-checkout-session', authMiddleware, createCheckoutSession);
+
+// Create Stripe Customer Portal session (manage subscription)
+app.post('/api/stripe/create-portal-session', authMiddleware, createPortalSession);
+
+// Get subscription status
+app.get('/api/stripe/subscription-status', authMiddleware, getSubscriptionStatus);
+
+// Get available plans
+app.get('/api/stripe/plans', (req, res) => {
+  res.json({ plans: PLANS });
+});
+
+// =============================================================================
+// SUBSCRIPTION API (Legacy - kept for backwards compatibility)
 // =============================================================================
 
 app.post('/api/subscription/activate', authMiddleware, async (req, res) => {

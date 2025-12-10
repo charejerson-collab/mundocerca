@@ -277,6 +277,35 @@ const api = {
     fetch(`${API_ROOT}/api/inquiries`, {
       headers: { ...getAuthHeaders() }
     }).then(handleResponse),
+
+  // ===========================================================================
+  // Stripe Payments
+  // ===========================================================================
+  
+  // Get available subscription plans
+  getStripePlans: () =>
+    fetch(`${API_ROOT}/api/stripe/plans`).then(handleResponse),
+
+  // Create Stripe Checkout Session for subscription
+  createCheckoutSession: (plan) =>
+    fetch(`${API_ROOT}/api/stripe/create-checkout-session`, {
+      method: 'POST',
+      headers: { ...jsonHeaders(), ...getAuthHeaders() },
+      body: JSON.stringify({ plan })
+    }).then(handleResponse),
+
+  // Create Stripe Customer Portal session (manage subscription)
+  createPortalSession: () =>
+    fetch(`${API_ROOT}/api/stripe/create-portal-session`, {
+      method: 'POST',
+      headers: { ...jsonHeaders(), ...getAuthHeaders() }
+    }).then(handleResponse),
+
+  // Get current subscription status
+  getSubscriptionStatus: () =>
+    fetch(`${API_ROOT}/api/stripe/subscription-status`, {
+      headers: { ...getAuthHeaders() }
+    }).then(handleResponse),
 };
 
 export default api;
