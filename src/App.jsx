@@ -164,14 +164,18 @@ export default function App() {
           api.getPros().catch(() => null)
         ]);
         
-        if (listingsRes && Array.isArray(listingsRes) && listingsRes.length > 0) {
-          setListings(listingsRes);
+        // Handle both array response and {properties: []} response structure
+        const listingsData = Array.isArray(listingsRes) ? listingsRes : listingsRes?.properties || listingsRes;
+        const prosData = Array.isArray(prosRes) ? prosRes : prosRes?.professionals || prosRes;
+        
+        if (listingsData && Array.isArray(listingsData) && listingsData.length > 0) {
+          setListings(listingsData);
         }
-        if (prosRes && Array.isArray(prosRes) && prosRes.length > 0) {
-          setProfessionals(prosRes);
+        if (prosData && Array.isArray(prosData) && prosData.length > 0) {
+          setProfessionals(prosData);
         }
       } catch (err) {
-        console.warn('Failed to fetch data from API, using fallback data');
+        // Silently use fallback data if API fails
       } finally {
         setDataLoading(false);
       }

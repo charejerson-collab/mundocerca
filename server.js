@@ -990,6 +990,249 @@ if (isSupabaseConfigured) {
 }
 
 // =============================================================================
+// FAVORITES API
+// =============================================================================
+
+app.get('/api/favorites', authMiddleware, async (req, res) => {
+  try {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('favorites')
+        .select(`
+          id,
+          property_id,
+          created_at,
+          properties (id, title, price, image, city_id, category)
+        `)
+        .eq('user_id', req.user.id);
+      
+      if (error) throw error;
+      return res.json({ favorites: data || [] });
+    }
+    
+    // SQLite fallback - no favorites table yet
+    res.json({ favorites: [] });
+  } catch (err) {
+    console.error('Get favorites error:', err);
+    res.status(500).json({ error: 'Failed to get favorites' });
+  }
+});
+
+app.post('/api/favorites', authMiddleware, async (req, res) => {
+  try {
+    const { property_id } = req.body;
+    
+    if (!property_id) {
+      return res.status(400).json({ error: 'property_id is required' });
+    }
+    
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('favorites')
+        .insert({ user_id: req.user.id, property_id })
+        .select()
+        .single();
+      
+      if (error) {
+        if (error.code === '23505') { // Unique violation
+          return res.status(400).json({ error: 'Already in favorites' });
+        }
+        throw error;
+      }
+      return res.status(201).json({ favorite: data });
+    }
+    
+    res.status(501).json({ error: 'Favorites not available in SQLite mode' });
+  } catch (err) {
+    console.error('Add favorite error:', err);
+    res.status(500).json({ error: 'Failed to add favorite' });
+  }
+});
+
+app.delete('/api/favorites/:propertyId', authMiddleware, async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    if (supabase) {
+      const { error } = await supabase
+        .from('favorites')
+        .delete()
+        .eq('user_id', req.user.id)
+        .eq('property_id', propertyId);
+      
+      if (error) throw error;
+      return res.json({ message: 'Removed from favorites' });
+    }
+    
+    res.status(501).json({ error: 'Favorites not available in SQLite mode' });
+  } catch (err) {
+    console.error('Remove favorite error:', err);
+    res.status(500).json({ error: 'Failed to remove favorite' });
+  }
+});
+
+// =============================================================================
+// INQUIRIES API
+// =============================================================================
+
+app.post('/api/inquiries', async (req, res) => {
+  try {
+    const { property_id, name, email, phone, message } = req.body;
+    
+    if (!property_id || !name || !email || !message) {
+      return res.status(400).json({ error: 'property_id, name, email, and message are required' });
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    if (supabase) {
+      // Get user_id if authenticated
+      let user_id = null;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+          user_id = decoded.id;
+        } catch (e) { /* ignore invalid token */ }
+      }
+      
+      const { data, error } = await supabase
+        .from('inquiries')
+        .insert({ property_id, user_id, name, email, phone: phone || null, message })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return res.status(201).json({ inquiry: data, message: 'Inquiry sent successfully' });
+    }
+    
+    // SQLite fallback - just acknowledge
+    res.status(201).json({ message: 'Inquiry sent successfully (demo mode)' });
+  } catch (err) {
+    console.error('Send inquiry error:', err);
+    res.status(500).json({ error: 'Failed to send inquiry' });
+  }
+});
+
+app.get('/api/inquiries', authMiddleware, async (req, res) => {
+  try {
+    if (supabase) {
+      // Get inquiries for properties owned by this user
+      const { data: landlord } = await supabase
+        .from('landlords')
+        .select('id')
+        .eq('user_id', req.user.id)
+        .single();
+      
+      if (!landlord) {
+        return res.json({ inquiries: [] });
+      }
+      
+      const { data, error } = await supabase
+        .from('inquiries')
+        .select(`
+          id,
+          name,
+          email,
+          phone,
+          message,
+          status,
+          created_at,
+          properties (id, title)
+        `)
+        .in('property_id', supabase.from('properties').select('id').eq('landlord_id', landlord.id));
+      
+      if (error) throw error;
+      return res.json({ inquiries: data || [] });
+    }
+    
+    res.json({ inquiries: [] });
+  } catch (err) {
+    console.error('Get inquiries error:', err);
+    res.status(500).json({ error: 'Failed to get inquiries' });
+  }
+});
+
+// =============================================================================
+// SUBSCRIPTION CANCEL
+// =============================================================================
+
+app.post('/api/subscription/cancel', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .update({ 
+          status: 'cancelled', 
+          cancelled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      if (!data) {
+        return res.status(404).json({ error: 'No active subscription found' });
+      }
+      
+      logSecurityEvent('SUBSCRIPTION_CANCELLED', { userId });
+      return res.json({ message: 'Subscription cancelled', subscription: data });
+    }
+    
+    // SQLite fallback
+    const result = db.prepare(`
+      UPDATE subscriptions SET status = 'cancelled', updated_at = datetime('now')
+      WHERE user_id = ? AND status = 'active'
+    `).run(userId);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+    
+    logSecurityEvent('SUBSCRIPTION_CANCELLED', { userId });
+    res.json({ message: 'Subscription cancelled' });
+  } catch (err) {
+    console.error('Cancel subscription error:', err);
+    res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+});
+
+// =============================================================================
+// IMAGE UPLOAD
+// =============================================================================
+
+app.post('/api/upload/image', authMiddleware, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file provided' });
+  }
+  
+  // Validate file type
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowedTypes.includes(req.file.mimetype)) {
+    // Delete the uploaded file
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Invalid file type. Allowed: JPEG, PNG, WebP, GIF' });
+  }
+  
+  const publicPath = `/uploads/${req.file.filename}`;
+  res.json({ 
+    ok: true, 
+    url: publicPath, 
+    filename: req.file.filename,
+    size: req.file.size
+  });
+});
+
+// =============================================================================
 // STATIC FILES & SPA FALLBACK
 // =============================================================================
 

@@ -242,6 +242,96 @@ CREATE POLICY "Users can upload own documents" ON public.verification_documents
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- =============================================================================
+-- FAVORITES TABLE
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.favorites (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  property_id BIGINT NOT NULL REFERENCES public.listings(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, property_id)
+);
+
+-- Enable RLS
+ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies to allow re-running
+DROP POLICY IF EXISTS "Users can view own favorites" ON public.favorites;
+DROP POLICY IF EXISTS "Users can add favorites" ON public.favorites;
+DROP POLICY IF EXISTS "Users can remove own favorites" ON public.favorites;
+
+-- Users can view their own favorites
+CREATE POLICY "Users can view own favorites" ON public.favorites
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Users can add favorites
+CREATE POLICY "Users can add favorites" ON public.favorites
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Users can remove their own favorites
+CREATE POLICY "Users can remove own favorites" ON public.favorites
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Index for faster queries
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON public.favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_property ON public.favorites(property_id);
+
+-- =============================================================================
+-- INQUIRIES TABLE
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.inquiries (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  property_id BIGINT NOT NULL REFERENCES public.listings(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'read', 'replied', 'closed')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.inquiries ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies to allow re-running
+DROP POLICY IF EXISTS "Users can view own inquiries" ON public.inquiries;
+DROP POLICY IF EXISTS "Property owners can view inquiries" ON public.inquiries;
+DROP POLICY IF EXISTS "Users can create inquiries" ON public.inquiries;
+DROP POLICY IF EXISTS "Property owners can update inquiry status" ON public.inquiries;
+
+-- Users can view their own inquiries (sent by them)
+CREATE POLICY "Users can view own inquiries" ON public.inquiries
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Property owners can view inquiries on their properties
+CREATE POLICY "Property owners can view inquiries" ON public.inquiries
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.listings 
+      WHERE id = property_id AND owner_id = auth.uid()
+    )
+  );
+
+-- Users can create inquiries
+CREATE POLICY "Users can create inquiries" ON public.inquiries
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Property owners can update inquiry status
+CREATE POLICY "Property owners can update inquiry status" ON public.inquiries
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.listings 
+      WHERE id = property_id AND owner_id = auth.uid()
+    )
+  );
+
+-- Index for faster queries
+CREATE INDEX IF NOT EXISTS idx_inquiries_user ON public.inquiries(user_id);
+CREATE INDEX IF NOT EXISTS idx_inquiries_property ON public.inquiries(property_id);
+CREATE INDEX IF NOT EXISTS idx_inquiries_status ON public.inquiries(status);
+
+-- =============================================================================
 -- CITIES TABLE (Reference data)
 -- =============================================================================
 
@@ -301,6 +391,11 @@ CREATE TRIGGER update_professionals_updated_at
 DROP TRIGGER IF EXISTS update_subscriptions_updated_at ON public.subscriptions;
 CREATE TRIGGER update_subscriptions_updated_at
   BEFORE UPDATE ON public.subscriptions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_inquiries_updated_at ON public.inquiries;
+CREATE TRIGGER update_inquiries_updated_at
+  BEFORE UPDATE ON public.inquiries
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================================================
