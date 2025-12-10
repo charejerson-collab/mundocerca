@@ -66,7 +66,9 @@ export { supabase, JWT_SECRET, NODE_ENV };
 // EXPRESS APP SETUP
 // =============================================================================
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname.replace(/^/, ''));
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 
 // Security middleware
