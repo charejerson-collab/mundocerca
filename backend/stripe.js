@@ -15,21 +15,21 @@ const PLANS = {
     priceMonthly: 299, // $2.99 USD in cents
     priceMXN: 49, // MXN pesos
     features: ['1 active listing', 'Basic support', '30-day free trial'],
-    stripePriceId: process.env.STRIPE_PRICE_BASIC || 'price_basic'
+    stripePriceId: process.env.STRIPE_PRICE_ID_BASIC || 'price_basic'
   },
   pro: {
     name: 'Pro Plan', 
     priceMonthly: 999, // $9.99 USD in cents
     priceMXN: 149,
     features: ['5 active listings', 'Priority support', 'Featured listings', '30-day free trial'],
-    stripePriceId: process.env.STRIPE_PRICE_PRO || 'price_pro'
+    stripePriceId: process.env.STRIPE_PRICE_ID_PRO || 'price_pro'
   },
   business: {
     name: 'Business Plan',
     priceMonthly: 2499, // $24.99 USD in cents
     priceMXN: 399,
     features: ['Unlimited listings', '24/7 support', 'Featured + highlighted', 'Analytics dashboard', '30-day free trial'],
-    stripePriceId: process.env.STRIPE_PRICE_BUSINESS || 'price_business'
+    stripePriceId: process.env.STRIPE_PRICE_ID_BUSINESS || 'price_business'
   }
 };
 
