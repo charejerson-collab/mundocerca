@@ -236,6 +236,9 @@ fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
 
 const db = new Database(dbFile);
 
+// Export db for use in stripe.js
+export { db };
+
 // Create tables
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -243,6 +246,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT,
   email TEXT UNIQUE,
   password TEXT,
+  stripe_customer_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -278,6 +282,8 @@ CREATE TABLE IF NOT EXISTS password_resets (
   used INTEGER DEFAULT 0,
   attempts INTEGER DEFAULT 0,
   ip_address TEXT,
+  reset_token_hash TEXT,
+  reset_token_expires DATETIME,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
@@ -292,6 +298,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   free_month_applied INTEGER DEFAULT 1,
   start_date DATETIME DEFAULT CURRENT_TIMESTAMP,
   free_month_ends DATETIME,
+  stripe_subscription_id TEXT,
+  stripe_customer_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)

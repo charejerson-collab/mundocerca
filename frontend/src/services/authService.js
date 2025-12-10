@@ -7,7 +7,7 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
-const API_ROOT = import.meta.env.VITE_API_ROOT || '';
+const API_ROOT = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_ROOT || '';
 
 // Helper for API calls
 async function apiCall(endpoint, options = {}) {
