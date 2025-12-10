@@ -23,15 +23,14 @@ export default function ConfirmSubscriptionPage({ selectedPlan, setView, setUser
       // Activate subscription via API
       const res = await api.activateSubscription(selectedPlan);
       
-      if (res.ok && res.user) {
+      if (res.ok && res.subscription) {
         // Update user in localStorage with subscription info
         const activeUser = {
           ...pendingUser,
-          ...res.user,
           subscriptionActive: true,
           subscriptionPlan: selectedPlan,
-          subscriptionStartDate: res.subscription.startDate,
-          freeMonthEnds: res.subscription.freeMonthEnds
+          subscriptionStartDate: res.subscription.startDate || res.subscription.start_date,
+          freeMonthEnds: res.subscription.freeMonthEnds || res.subscription.free_month_ends
         };
 
         localStorage.setItem('mc_user', JSON.stringify(activeUser));
@@ -42,6 +41,8 @@ export default function ConfirmSubscriptionPage({ selectedPlan, setView, setUser
         
         setLoading(false);
         setView('dashboard');
+      } else {
+        throw new Error('Subscription activation failed');
       }
     } catch (err) {
       setError(err.error || (lang === 'en' ? 'Failed to activate subscription. Please try again.' : 'Error al activar la suscripción. Inténtalo de nuevo.'));

@@ -141,8 +141,19 @@ export default function App() {
   const [searchText, setSearchText] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Auth State
-  const [user, setUser] = useState(null);
+  // Auth State - restore from localStorage on mount
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('mc_user');
+      const savedToken = localStorage.getItem('mc_token');
+      if (savedUser && savedToken) {
+        return JSON.parse(savedUser);
+      }
+    } catch (e) {
+      console.error('Failed to restore user session:', e);
+    }
+    return null;
+  });
   const [lang, setLang] = useState('en');
   const [selectedPlan, setSelectedPlan] = useState('basic');
 
@@ -153,6 +164,42 @@ export default function App() {
 
   // Toast notifications
   const { toasts, addToast, removeToast } = useToast();
+
+  // Verify user session on mount and fetch subscription status
+  useEffect(() => {
+    const verifySession = async () => {
+      const token = localStorage.getItem('mc_token');
+      if (!token || !user) return;
+
+      try {
+        // Verify session with backend
+        const sessionRes = await api.getSession().catch(() => null);
+        if (!sessionRes || !sessionRes.user) {
+          // Token invalid, clear session
+          localStorage.removeItem('mc_token');
+          localStorage.removeItem('mc_user');
+          setUser(null);
+          return;
+        }
+
+        // Fetch subscription status
+        const subRes = await api.getSubscription().catch(() => null);
+        if (subRes && subRes.subscription) {
+          const updatedUser = {
+            ...user,
+            subscriptionActive: subRes.subscription.status === 'active',
+            subscriptionPlan: subRes.subscription.plan,
+            freeMonthEnds: subRes.subscription.freeMonthEnds || subRes.subscription.free_month_ends
+          };
+          localStorage.setItem('mc_user', JSON.stringify(updatedUser));
+          setUser(updatedUser);
+        }
+      } catch (err) {
+        console.error('Session verification failed:', err);
+      }
+    };
+    verifySession();
+  }, []); // Run once on mount
 
   // Fetch listings and professionals from API on mount
   useEffect(() => {
@@ -540,7 +587,15 @@ export default function App() {
     return <Dashboard user={user} setUser={setUser} setView={setView} lang={lang} />;
   }
   if (view === 'login') {
-    return <Auth onLogin={(u) => { setUser(u); setView('home'); }} />;
+    return <Auth onLogin={(u) => { 
+      setUser(u); 
+      // Redirect to dashboard if user has active subscription, otherwise home
+      if (u.subscriptionActive || u.subscriptionPlan) {
+        setView('dashboard');
+      } else {
+        setView('home');
+      }
+    }} />;
   }
 
   return (
