@@ -30,6 +30,9 @@ import {
   PLANS 
 } from './stripe.js';
 
+// Import V2 routes (production features)
+import v2Routes from './routes/v2.js';
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -383,6 +386,9 @@ function checkCooldown(email) {
 // Health check
 app.get('/api/ping', (req, res) => res.json({ ok: true, mode: isSupabaseConfigured ? 'supabase' : 'sqlite' }));
 app.get('/api/health', (req, res) => res.json({ status: 'healthy', env: NODE_ENV }));
+
+// Mount V2 API routes (production features)
+app.use('/api/v2', v2Routes);
 
 // =============================================================================
 // LISTINGS API

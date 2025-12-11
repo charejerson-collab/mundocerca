@@ -20,12 +20,21 @@ const PLAN_DETAILS = {
   business: { name: 'Business Plan', price: 699, maxListings: 25, icon: '🏢' }
 };
 
-export default function Dashboard({ user, setUser, setView, lang }) {
+export default function Dashboard({ user, setUser, setView, navigateTo, lang }) {
   const plan = PLAN_DETAILS[user?.subscriptionPlan] || PLAN_DETAILS.basic;
   
   const freeMonthEnds = user?.freeMonthEnds 
     ? new Date(user.freeMonthEnds).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-MX', { month: 'long', day: 'numeric', year: 'numeric' })
     : null;
+
+  // Use navigateTo if available, fallback to setView
+  const goTo = (view, params) => {
+    if (navigateTo) {
+      navigateTo(view, params);
+    } else {
+      setView(view);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('mc_user');
@@ -47,25 +56,29 @@ export default function Dashboard({ user, setUser, setView, lang }) {
       title: lang === 'en' ? 'Add Your First Casa' : 'Agrega Tu Primera Casa', 
       desc: lang === 'en' ? 'Start listing your property' : 'Comienza a listar tu propiedad',
       icon: Plus,
-      primary: true
+      primary: true,
+      action: () => goTo('create-listing')
     },
     { 
       title: lang === 'en' ? 'Manage Listings' : 'Administrar Listados', 
       desc: lang === 'en' ? 'View and edit your properties' : 'Ver y editar tus propiedades',
       icon: List,
-      primary: false
+      primary: false,
+      action: () => goTo('seller-dashboard')
     },
     { 
       title: lang === 'en' ? 'Billing & Plan' : 'Facturación y Plan', 
       desc: lang === 'en' ? 'Manage your subscription' : 'Administra tu suscripción',
       icon: CreditCard,
-      primary: false
+      primary: false,
+      action: () => goTo('plans')
     },
     { 
       title: lang === 'en' ? 'Settings' : 'Configuración', 
       desc: lang === 'en' ? 'Account preferences' : 'Preferencias de cuenta',
       icon: Settings,
-      primary: false
+      primary: false,
+      action: () => goTo('seller-dashboard')
     }
   ];
 
@@ -166,7 +179,10 @@ export default function Dashboard({ user, setUser, setView, lang }) {
                 </p>
               </div>
             </div>
-            <button className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg font-medium transition-colors">
+            <button 
+              onClick={() => setView('plans')}
+              className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg font-medium transition-colors"
+            >
               {lang === 'en' ? 'Upgrade Plan' : 'Mejorar Plan'}
             </button>
           </div>
@@ -182,6 +198,7 @@ export default function Dashboard({ user, setUser, setView, lang }) {
             return (
               <button
                 key={idx}
+                onClick={action.action}
                 className={`p-6 rounded-xl text-left transition-all flex items-center gap-4 group ${
                   action.primary 
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-200' 
@@ -220,7 +237,10 @@ export default function Dashboard({ user, setUser, setView, lang }) {
               ? 'Start showcasing your properties to reach thousands of potential renters across Mexico.'
               : 'Comienza a mostrar tus propiedades para llegar a miles de posibles inquilinos en todo México.'}
           </p>
-          <button className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200">
+          <button 
+            onClick={() => setView('create-listing')}
+            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200"
+          >
             <span className="flex items-center gap-2">
               <Plus size={20} />
               {lang === 'en' ? 'Add Your First Property' : 'Agrega Tu Primera Propiedad'}

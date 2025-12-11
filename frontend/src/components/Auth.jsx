@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import api from '../api';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import Input from './Input';
 import Button from './Button';
 import ForgotPassword from './ForgotPassword';
@@ -11,6 +12,36 @@ export default function Auth({ onLogin }) {
   const [name, setName] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
+
+  // Auth0 OAuth login via Supabase
+  const doAuth0Login = async () => {
+    if (!isSupabaseConfigured()) {
+      setError('OAuth not configured. Please use email/password login.');
+      return;
+    }
+    
+    setOauthLoading(true);
+    setError(null);
+    
+    try {
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'auth0',
+        options: {
+          redirectTo: window.location.origin,
+        }
+      });
+      
+      if (oauthError) {
+        setError(oauthError.message || 'Auth0 login failed');
+      }
+      // If successful, Supabase will redirect to Auth0
+    } catch (e) {
+      setError(e.message || 'Auth0 login failed');
+    } finally {
+      setOauthLoading(false);
+    }
+  };
 
   const doLogin = async () => {
     setLoading(true); setError(null);
@@ -157,6 +188,41 @@ export default function Auth({ onLogin }) {
                 </Button>
               )}
             </div>
+
+            {/* Auth0 OAuth Divider */}
+            {isSupabaseConfigured() && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white text-gray-500">or continue with</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={doAuth0Login}
+                  disabled={oauthLoading}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-xl bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {oauthLoading ? (
+                    <svg className="animate-spin h-5 w-5 text-gray-600" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#EB5424"/>
+                    </svg>
+                  )}
+                  <span className="font-medium text-gray-700">
+                    {oauthLoading ? 'Connecting...' : 'Sign in with Auth0'}
+                  </span>
+                </button>
+              </>
+            )}
           </div>
 
           {mode === 'login' && (

@@ -2,6 +2,7 @@ import React from 'react';
 import Card from './Card';
 import Badge from './Badge';
 import Button from './Button';
+import { getListing } from '../services/listingsService';
 
 // City ID to Name mapping
 const CITY_NAMES = {
@@ -14,6 +15,18 @@ const CITY_NAMES = {
 
 export default function ListingCard({ listing, formatMXN, onDetails, compact = false }) {
   const cityName = CITY_NAMES[listing.city_id] || listing.city_id;
+
+  const handleDetailsClick = async (e) => {
+    e.stopPropagation();
+    if (!onDetails) return;
+    try {
+      const fullListing = await getListing(listing.id);
+      onDetails(fullListing || listing);
+    } catch (err) {
+      // Fallback to the original listing if fetch fails
+      onDetails(listing);
+    }
+  };
   
   return (
     <Card className={compact ? 'md:flex-row' : 'group'}>
@@ -32,7 +45,7 @@ export default function ListingCard({ listing, formatMXN, onDetails, compact = f
 
         <div className="mt-3 flex gap-2">
           <a href={`https://wa.me/${listing.whatsapp}`} target="_blank" rel="noreferrer" className="flex-1 text-center py-2 rounded bg-green-600 text-white hover:bg-green-700 transition-colors">WhatsApp</a>
-          <Button variant="ghost" onClick={() => onDetails && onDetails(listing)} className="px-3 py-2">Details</Button>
+          <Button variant="ghost" onClick={handleDetailsClick} className="px-3 py-2">Details</Button>
         </div>
       </div>
     </Card>

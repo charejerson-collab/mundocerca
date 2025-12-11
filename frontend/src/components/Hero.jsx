@@ -8,20 +8,27 @@ export default function Hero({ searchMode, setSearchMode, searchText, setSearchT
         <p className="mt-4 text-xl opacity-90 max-w-2xl">{lang === 'en' ? 'The trusted ecosystem for rentals and verified professional services.' : 'El ecosistema confiable para rentas y servicios profesionales verificados.'}</p>
 
         <div className="mt-8 bg-white rounded-2xl p-5 text-slate-900 shadow-2xl max-w-3xl border border-gray-100">
-          <div className="flex gap-2 items-center">
-            <button onClick={() => setSearchMode('homes')} className={`px-4 py-2 rounded-full ${searchMode === 'homes' ? 'bg-indigo-50 font-bold' : 'bg-slate-100'}`}>{lang === 'en' ? 'Homes' : 'Casas'}</button>
-            <button onClick={() => setSearchMode('pros')} className={`px-4 py-2 rounded-full ${searchMode === 'pros' ? 'bg-indigo-50 font-bold' : 'bg-slate-100'}`}>{lang === 'en' ? 'Professionals' : 'Profesionales'}</button>
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <div className="flex gap-2">
+              <button onClick={() => setSearchMode('homes')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${searchMode === 'homes' ? 'bg-indigo-100 text-indigo-700 font-bold' : 'bg-slate-100 hover:bg-slate-200'}`}>{lang === 'en' ? 'Homes' : 'Casas'}</button>
+              <button onClick={() => setSearchMode('pros')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${searchMode === 'pros' ? 'bg-indigo-100 text-indigo-700 font-bold' : 'bg-slate-100 hover:bg-slate-200'}`}>{lang === 'en' ? 'Professionals' : 'Profesionales'}</button>
+            </div>
 
-            <div className="flex-1 relative">
+            <div className="flex-1 flex flex-col sm:flex-row gap-2">
               <input
                 aria-label="Search"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { setView(searchMode === 'homes' ? 'search-homes' : 'search-pros'); } }}
-                className="w-full border rounded-xl px-4 py-3"
-                placeholder={searchMode === 'homes' ? (lang === 'en' ? 'Search homes, city, neighborhood...' : 'Busca casas, ciudad, colonia...') : (lang === 'en' ? 'Search professionals, service, name...' : 'Busca profesionales, servicio, nombre...')}
+                className="flex-1 min-w-0 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder={searchMode === 'homes' ? (lang === 'en' ? 'Search homes, city...' : 'Busca casas, ciudad...') : (lang === 'en' ? 'Search professionals...' : 'Busca profesionales...')}
               />
-              <button onClick={() => setView(searchMode === 'homes' ? 'search-homes' : 'search-pros')} className="absolute right-2 top-2 bg-indigo-600 text-white px-4 py-2 rounded-xl">{lang === 'en' ? 'Search' : 'Buscar'}</button>
+              <button
+                onClick={() => setView(searchMode === 'homes' ? 'search-homes' : 'search-pros')}
+                className="bg-indigo-600 text-white px-4 sm:px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors w-full sm:w-auto mt-2 sm:mt-0"
+              >
+                {lang === 'en' ? 'Search' : 'Buscar'}
+              </button>
             </div>
           </div>
         </div>

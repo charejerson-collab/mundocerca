@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import {
   Scale,
   Stethoscope,
@@ -17,6 +18,42 @@ import PlansPage from './components/PlansPage';
 import CreateAccountPage from './components/CreateAccountPage';
 import ConfirmSubscriptionPage from './components/ConfirmSubscriptionPage';
 import Dashboard from './components/Dashboard';
+
+// New Marketplace Components
+import SellerDashboard from './components/SellerDashboard';
+import ListingForm from './components/ListingForm';
+import Marketplace from './components/Marketplace';
+import ListingDetail from './components/ListingDetail';
+import MessagingPage, { NewConversationModal } from './components/Messaging';
+
+// =============================================================================
+// ERROR PAGE FALLBACK COMPONENT
+// =============================================================================
+
+function ErrorPage({ error, resetErrorBoundary }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Algo salió mal</h1>
+        <p className="text-gray-600 mb-6">Lo sentimos, ocurrió un error inesperado. Por favor intenta de nuevo.</p>
+        {error?.message && (
+          <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3 mb-6 font-mono">{error.message}</p>
+        )}
+        <button
+          onClick={resetErrorBoundary}
+          className="w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+        >
+          Intentar de nuevo
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // --- MOCK DATA: LOCATIONS ---
 const CITIES = [
@@ -165,11 +202,20 @@ export default function App() {
   // Toast notifications
   const { toasts, addToast, removeToast } = useToast();
 
+  // Centralized navigation function
+  const navigateTo = (targetView, viewParams = {}) => {
+    setParams(viewParams);
+    setView(targetView);
+  };
+
   // Verify user session on mount and fetch subscription status
   useEffect(() => {
     const verifySession = async () => {
       const token = localStorage.getItem('mc_token');
-      if (!token || !user) return;
+      const savedUser = localStorage.getItem('mc_user');
+      if (!token || !savedUser) return;
+      
+      const currentUser = JSON.parse(savedUser);
 
       try {
         // Verify session with backend
@@ -186,7 +232,7 @@ export default function App() {
         const subRes = await api.getSubscription().catch(() => null);
         if (subRes && subRes.subscription) {
           const updatedUser = {
-            ...user,
+            ...currentUser,
             subscriptionActive: subRes.subscription.status === 'active',
             subscriptionPlan: subRes.subscription.plan,
             freeMonthEnds: subRes.subscription.freeMonthEnds || subRes.subscription.free_month_ends
@@ -317,7 +363,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filtered.length > 0 ? filtered.map((l) => (
-            <ListingCard key={l.id} listing={l} formatMXN={formatMXN} onDetails={(li) => addToast(`${lang === 'en' ? 'Viewing' : 'Viendo'}: ${li.title}`, 'info')} />
+            <ListingCard key={l.id} listing={l} formatMXN={formatMXN} onDetails={(li) => { setParams({ listingId: li.id }); setView('listing-detail'); }} />
           )) : (
             <div className="col-span-full text-center py-12">
               <div className="text-gray-400 mb-4">
@@ -570,7 +616,7 @@ export default function App() {
 
   // Main render
   // Full-page views that don't show the standard navbar/hero/footer
-  const fullPageViews = ['plans', 'create-account', 'confirm-subscription', 'dashboard', 'login'];
+  const fullPageViews = ['plans', 'create-account', 'confirm-subscription', 'dashboard', 'login', 'seller-dashboard', 'create-listing', 'edit-listing', 'marketplace', 'listing-detail', 'messages'];
   const isFullPage = fullPageViews.includes(view);
 
   // Render full-page views
@@ -584,7 +630,7 @@ export default function App() {
     return <ConfirmSubscriptionPage selectedPlan={selectedPlan} setView={setView} setUser={setUser} lang={lang} />;
   }
   if (view === 'dashboard') {
-    return <Dashboard user={user} setUser={setUser} setView={setView} lang={lang} />;
+    return <Dashboard user={user} setUser={setUser} setView={setView} navigateTo={navigateTo} lang={lang} />;
   }
   if (view === 'login') {
     return <Auth onLogin={(u) => { 
@@ -597,8 +643,82 @@ export default function App() {
       }
     }} />;
   }
+  
+  // New Marketplace Views
+  if (view === 'seller-dashboard') {
+    return (
+      <SellerDashboard 
+        user={user}
+        setUser={setUser}
+        setView={(v, p) => { if (p) setParams(p); setView(v); }}
+        lang={lang}
+        onBack={() => setView('dashboard')}
+        onCreateListing={() => setView('create-listing')}
+        onEditListing={(listing) => { setParams({ listingId: listing.id }); setView('edit-listing'); }}
+        onViewMessages={() => setView('messages')}
+      />
+    );
+  }
+  
+  if (view === 'create-listing') {
+    return (
+      <ListingForm 
+        user={user}
+        onBack={() => setView('seller-dashboard')}
+        onSuccess={(listing) => {
+          addToast(lang === 'en' ? 'Listing created successfully!' : '¡Anuncio creado exitosamente!', 'success');
+          setView('seller-dashboard');
+        }}
+      />
+    );
+  }
+  
+  if (view === 'edit-listing') {
+    return (
+      <ListingForm 
+        user={user}
+        listingId={params.listingId}
+        onBack={() => setView('seller-dashboard')}
+        onSuccess={(listing) => {
+          addToast(lang === 'en' ? 'Listing updated successfully!' : '¡Anuncio actualizado exitosamente!', 'success');
+          setView('seller-dashboard');
+        }}
+      />
+    );
+  }
+  
+  if (view === 'marketplace') {
+    return (
+      <Marketplace 
+        user={user}
+        onBack={() => setView('home')}
+        onViewListing={(listing) => { setParams({ listingId: listing.id }); setView('listing-detail'); }}
+      />
+    );
+  }
+  
+  if (view === 'listing-detail') {
+    return (
+      <ListingDetail 
+        listingId={params.listingId}
+        user={user}
+        onBack={() => setView('marketplace')}
+        onMessage={(listing) => { setParams({ contactListing: listing }); }}
+      />
+    );
+  }
+  
+  if (view === 'messages') {
+    return (
+      <MessagingPage 
+        user={user}
+        onBack={() => setView('seller-dashboard')}
+      />
+    );
+  }
 
   return (
+    <ErrorBoundary FallbackComponent={ErrorPage}>
     <div className="min-h-screen bg-gray-50">
       <Navbar
         view={view}
@@ -642,7 +762,7 @@ export default function App() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {listings.slice(0, 3).map((l) => (
-              <ListingCard key={l.id} listing={l} compact={true} formatMXN={formatMXN} onDetails={(li) => addToast(`${lang === 'en' ? 'Viewing' : 'Viendo'}: ${li.title}`, 'info')} />
+              <ListingCard key={l.id} listing={l} compact={true} formatMXN={formatMXN} onDetails={(li) => { setParams({ listingId: li.id }); setView('listing-detail'); }} />
             ))}
           </div>
         </section>
@@ -723,5 +843,6 @@ export default function App() {
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
+    </ErrorBoundary>
   );
 }

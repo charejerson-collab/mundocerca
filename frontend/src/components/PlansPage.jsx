@@ -115,7 +115,7 @@ export default function PlansPage({ setView, setSelectedPlan, lang, user }) {
             {error}
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 lg:gap-8">
           {PLANS.map((plan) => {
             const Icon = plan.icon;
             return (
@@ -123,7 +123,7 @@ export default function PlansPage({ setView, setSelectedPlan, lang, user }) {
                 key={plan.id}
                 className={`relative bg-white rounded-3xl p-8 transition-all duration-300 hover:-translate-y-2 ${
                   plan.highlight 
-                    ? 'ring-2 ring-indigo-600 shadow-2xl shadow-indigo-200 scale-105' 
+                    ? 'ring-2 ring-indigo-600 shadow-2xl shadow-indigo-200 md:scale-105 order-first lg:order-none' 
                     : 'shadow-lg hover:shadow-xl border border-gray-100'
                 }`}
               >
