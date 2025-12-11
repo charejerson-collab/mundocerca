@@ -10,16 +10,16 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy package files first (for better layer caching)
-COPY package.json package-lock.json* ./
+COPY backend/package.json backend/package-lock.json* ./
 
 # Install production dependencies only
 RUN npm ci --omit=dev
 
 # Copy application source code
-COPY server.js ./
-COPY stripe.js ./
-COPY data/ ./data/
-COPY supabase/ ./supabase/
+COPY backend/server.js ./
+COPY backend/stripe.js ./
+COPY backend/data/ ./data/
+COPY backend/supabase/ ./supabase/
 
 # Set environment variables
 ENV NODE_ENV=production
