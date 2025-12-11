@@ -1,0 +1,11 @@
+# Force Railway to use Nixpacks (Node.js)
+# This file overrides any Docker detection
+
+[phases.setup]
+nixPkgs = ["nodejs_18", "npm"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[start]
+cmd = "npm start"
