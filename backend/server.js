@@ -10,7 +10,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
-import Database from 'better-sqlite3';
+// SQLite is dynamically imported only when needed (local dev without Supabase)
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
@@ -224,108 +224,124 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 app.use('/uploads', express.static(path.join(__dirname, 'data', 'uploads')));
 
 // =============================================================================
-// SQLITE DATABASE (Fallback for local development)
+// SQLITE DATABASE (Fallback for local development only)
 // =============================================================================
 
-const dbFile = path.join(__dirname, 'data', 'app.db');
-const seedFile = path.join(__dirname, 'data', 'seed.json');
-const needSeed = !fs.existsSync(dbFile);
+let db = null;
 
-// Ensure data directory exists
-fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+// Only initialize SQLite if Supabase is NOT configured (local dev mode)
+if (!isSupabaseConfigured) {
+  try {
+    const Database = (await import('better-sqlite3')).default;
+    
+    const dbFile = path.join(__dirname, 'data', 'app.db');
+    const seedFile = path.join(__dirname, 'data', 'seed.json');
+    const needSeed = !fs.existsSync(dbFile);
 
-const db = new Database(dbFile);
+    // Ensure data directory exists
+    fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+
+    db = new Database(dbFile);
+
+    // Create tables
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      email TEXT UNIQUE,
+      password TEXT,
+      stripe_customer_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS listings (
+      id INTEGER PRIMARY KEY,
+      title TEXT,
+      price INTEGER,
+      city_id TEXT,
+      category TEXT,
+      bedrooms INTEGER,
+      bathrooms INTEGER,
+      description TEXT,
+      image TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS professionals (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      title TEXT,
+      category TEXT,
+      city_id TEXT,
+      rating REAL,
+      verified INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      otp_hash TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME NOT NULL,
+      used INTEGER DEFAULT 0,
+      attempts INTEGER DEFAULT 0,
+      ip_address TEXT,
+      reset_token_hash TEXT,
+      reset_token_expires DATETIME,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
+    CREATE INDEX IF NOT EXISTS idx_password_resets_expires ON password_resets(expires_at);
+
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      plan TEXT NOT NULL,
+      status TEXT DEFAULT 'active',
+      free_month_applied INTEGER DEFAULT 1,
+      start_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      free_month_ends DATETIME,
+      stripe_subscription_id TEXT,
+      stripe_customer_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+    `);
+
+    // Seed database
+    if (needSeed && fs.existsSync(seedFile)) {
+      const seed = JSON.parse(fs.readFileSync(seedFile, 'utf8'));
+      const insertListing = db.prepare('INSERT INTO listings (id,title,price,city_id,category,bedrooms,bathrooms,description,image) VALUES (?,?,?,?,?,?,?,?,?)');
+      const insertPro = db.prepare('INSERT OR REPLACE INTO professionals (id,name,title,category,city_id,rating,verified) VALUES (?,?,?,?,?,?,?)');
+      const insertUser = db.prepare('INSERT OR IGNORE INTO users (name,email,password) VALUES (?,?,?)');
+
+      db.transaction(() => {
+        seed.listings.forEach(l => insertListing.run(l.id, l.title, l.price, l.city_id, l.category, l.bedrooms || 0, l.bathrooms || 0, l.description || '', l.image || ''));
+        (seed.professionals || []).forEach(p => insertPro.run(p.id, p.name, p.title, p.category, p.city_id, p.rating || 0, p.verified ? 1 : 0));
+        const pw = bcrypt.hashSync('password', 10);
+        insertUser.run('Test User', 'test@example.com', pw);
+      })();
+      console.log('✅ SQLite DB seeded');
+    }
+    
+    console.log('✅ SQLite initialized (local dev mode)');
+  } catch (err) {
+    console.warn('⚠️ SQLite not available:', err.message);
+    console.warn('   This is fine in production - using Supabase instead.');
+  }
+}
 
 // Export db for use in stripe.js
 export { db };
 
-// Create tables
-db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT,
-  email TEXT UNIQUE,
-  password TEXT,
-  stripe_customer_id TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS listings (
-  id INTEGER PRIMARY KEY,
-  title TEXT,
-  price INTEGER,
-  city_id TEXT,
-  category TEXT,
-  bedrooms INTEGER,
-  bathrooms INTEGER,
-  description TEXT,
-  image TEXT
-);
-
-CREATE TABLE IF NOT EXISTS professionals (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  title TEXT,
-  category TEXT,
-  city_id TEXT,
-  rating REAL,
-  verified INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS password_resets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  email TEXT NOT NULL,
-  otp_hash TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  expires_at DATETIME NOT NULL,
-  used INTEGER DEFAULT 0,
-  attempts INTEGER DEFAULT 0,
-  ip_address TEXT,
-  reset_token_hash TEXT,
-  reset_token_expires DATETIME,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
-CREATE INDEX IF NOT EXISTS idx_password_resets_expires ON password_resets(expires_at);
-
-CREATE TABLE IF NOT EXISTS subscriptions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  plan TEXT NOT NULL,
-  status TEXT DEFAULT 'active',
-  free_month_applied INTEGER DEFAULT 1,
-  start_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-  free_month_ends DATETIME,
-  stripe_subscription_id TEXT,
-  stripe_customer_id TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
-`);
-
-// Seed database
-if (needSeed && fs.existsSync(seedFile)) {
-  const seed = JSON.parse(fs.readFileSync(seedFile, 'utf8'));
-  const insertListing = db.prepare('INSERT INTO listings (id,title,price,city_id,category,bedrooms,bathrooms,description,image) VALUES (?,?,?,?,?,?,?,?,?)');
-  const insertPro = db.prepare('INSERT OR REPLACE INTO professionals (id,name,title,category,city_id,rating,verified) VALUES (?,?,?,?,?,?,?)');
-  const insertUser = db.prepare('INSERT OR IGNORE INTO users (name,email,password) VALUES (?,?,?)');
-
-  db.transaction(() => {
-    seed.listings.forEach(l => insertListing.run(l.id, l.title, l.price, l.city_id, l.category, l.bedrooms || 0, l.bathrooms || 0, l.description || '', l.image || ''));
-    (seed.professionals || []).forEach(p => insertPro.run(p.id, p.name, p.title, p.category, p.city_id, p.rating || 0, p.verified ? 1 : 0));
-    const pw = bcrypt.hashSync('password', 10);
-    insertUser.run('Test User', 'test@example.com', pw);
-  })();
-  console.log('✅ SQLite DB seeded');
-}
-
-// Helper functions for SQLite fallback
+// Helper functions for SQLite fallback (only used when db is available)
 function checkEmailRateLimit(email) {
+  if (!db) return { requestsInLastHour: 0, lastRequestAt: null };
+  
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const stmt = db.prepare(`
     SELECT COUNT(*) as count, MAX(created_at) as last_request
@@ -340,6 +356,8 @@ function checkEmailRateLimit(email) {
 }
 
 function checkCooldown(email) {
+  if (!db) return { allowed: true, waitSeconds: 0 };
+  
   const stmt = db.prepare(`
     SELECT created_at FROM password_resets
     WHERE email = ?
@@ -382,6 +400,8 @@ app.get('/api/listings', async (req, res) => {
       if (error) throw error;
       return res.json(data || []);
     }
+    // SQLite fallback (local dev only)
+    if (!db) return res.status(503).json({ error: 'Database not configured' });
     const stmt = db.prepare('SELECT * FROM listings ORDER BY id DESC LIMIT 100');
     res.json(stmt.all());
   } catch (err) {
@@ -404,6 +424,8 @@ app.get('/api/pros', async (req, res) => {
       if (error) throw error;
       return res.json(data || []);
     }
+    // SQLite fallback (local dev only)
+    if (!db) return res.status(503).json({ error: 'Database not configured' });
     const stmt = db.prepare('SELECT * FROM professionals LIMIT 100');
     res.json(stmt.all());
   } catch (err) {
@@ -448,7 +470,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       return res.json({ user, token });
     }
     
-    // SQLite fallback
+    // SQLite fallback (local dev only)
+    if (!db) return res.status(503).json({ error: 'Database not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.' });
     const stmt = db.prepare('INSERT INTO users (name,email,password) VALUES (?,?,?)');
     const info = stmt.run(name || '', email, hashed);
     const user = { id: info.lastInsertRowid, name, email };
@@ -481,7 +504,8 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       return res.json({ user, token });
     }
     
-    // SQLite fallback
+    // SQLite fallback (local dev only)
+    if (!db) return res.status(503).json({ error: 'Database not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.' });
     const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
     const user = stmt.get(email);
     if (!user) return res.status(400).json({ error: 'invalid credentials' });
@@ -526,8 +550,13 @@ app.post('/api/auth/forgot-password', resetIpLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
+  // SQLite fallback only - password reset requires db
+  if (!db && !supabase) {
+    return res.status(503).json({ error: 'Password reset not available. Please contact support.' });
+  }
+
   try {
-    // Check per-email rate limit
+    // Check per-email rate limit (only when db available)
     const { requestsInLastHour } = checkEmailRateLimit(normalizedEmail);
     if (requestsInLastHour >= RESET_CONFIG.MAX_REQUESTS_PER_EMAIL_HOUR) {
       logSecurityEvent('RESET_RATE_LIMIT_EMAIL', { email: normalizedEmail, ip: clientIp });
@@ -591,6 +620,11 @@ app.post('/api/auth/verify-otp', authLimiter, async (req, res) => {
 
   const normalizedEmail = email.toLowerCase().trim();
 
+  // SQLite fallback only - in production, use Supabase for password resets
+  if (!db) {
+    return res.status(503).json({ error: 'Password reset not available. Please contact support.' });
+  }
+
   try {
     const record = db.prepare(`
       SELECT * FROM password_resets 
@@ -652,6 +686,11 @@ app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+
+  // SQLite fallback only - in production, use Supabase for password resets
+  if (!db) {
+    return res.status(503).json({ error: 'Password reset not available. Please contact support.' });
+  }
 
   try {
     const record = db.prepare(`
@@ -765,7 +804,8 @@ app.post('/api/subscription/activate', authMiddleware, async (req, res) => {
       return res.json({ ok: true, subscription });
     }
     
-    // SQLite fallback
+    // SQLite fallback (local dev only)
+    if (!db) return res.status(503).json({ error: 'Database not configured' });
     const existingSub = db.prepare('SELECT * FROM subscriptions WHERE user_id = ? AND status = ?').get(userId, 'active');
     if (existingSub) {
       return res.status(400).json({ error: 'You already have an active subscription' });
@@ -814,6 +854,8 @@ app.get('/api/subscription', authMiddleware, async (req, res) => {
       return res.json({ subscription: subscription || null });
     }
     
+    // SQLite fallback (local dev only)
+    if (!db) return res.json({ subscription: null });
     const subscription = db.prepare(`
       SELECT * FROM subscriptions 
       WHERE user_id = ? AND status = 'active'

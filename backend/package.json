@@ -10,7 +10,6 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.87.0",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^8.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
@@ -20,6 +19,9 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^7.0.11",
     "stripe": "^14.10.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^8.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
