@@ -6,14 +6,20 @@
 
 FROM node:18-alpine
 
+# Install build dependencies for native modules (better-sqlite3)
+RUN apk add --no-cache python3 make g++
+
 # Set working directory
 WORKDIR /app
 
 # Copy package files first (for better layer caching)
 COPY backend/package.json backend/package-lock.json* ./
 
-# Install production dependencies only
-RUN npm ci --omit=dev
+# Install ALL dependencies (need devDeps for native module compilation)
+RUN npm ci
+
+# Rebuild native modules for Alpine Linux
+RUN npm rebuild better-sqlite3
 
 # Copy application source code
 COPY backend/server.js ./
