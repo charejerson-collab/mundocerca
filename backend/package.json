@@ -1,11 +1,9 @@
 {
-  "name": "mundocerca-backend",
-  "type": "module",
-  "version": "0.1.0",
-  "private": true,
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.87.0",
