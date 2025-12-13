@@ -4,7 +4,8 @@
 // Browse and search listings with advanced filters
 // =============================================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Search,
   Filter,
@@ -321,10 +322,16 @@ function FilterPanel({ filters, onChange, onClose, isOpen }) {
 // =============================================================================
 
 export default function Marketplace({ onViewListing, onContact, onBack }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+  
+  // Get page from URL, default to 1
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
@@ -339,6 +346,19 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
   const [sortOption, setSortOption] = useState('created_at_desc');
   const [viewMode, setViewMode] = useState('grid');
   const [showFilters, setShowFilters] = useState(false);
+  
+  const lastFetchRef = useRef({ page: 0, filters: null, sortOption: null, searchQuery: null });
+  
+  // Update URL when page changes
+  const updatePageInUrl = useCallback((page) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (page === 1) {
+      newParams.delete('page');
+    } else {
+      newParams.set('page', page.toString());
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   
   // Fetch listings
   const fetchListings = useCallback(async (page = 1, append = false) => {
@@ -387,6 +407,8 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
           totalCount: newListings.length,
         });
       }
+      
+      lastFetchRef.current = { page, filters, sortOption, searchQuery };
     } catch (error) {
       console.error('Failed to fetch listings:', error);
     } finally {
@@ -395,22 +417,46 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
     }
   }, [filters, sortOption, searchQuery]);
   
-  // Initial fetch and on filter change
+  // Initial fetch and on filter change - reset to page 1
   useEffect(() => {
-    fetchListings(1);
-  }, [filters, sortOption]);
+    const filtersChanged = JSON.stringify(lastFetchRef.current.filters) !== JSON.stringify(filters);
+    const sortChanged = lastFetchRef.current.sortOption !== sortOption;
+    
+    if (filtersChanged || sortChanged) {
+      if (currentPage !== 1) {
+        updatePageInUrl(1);
+      } else {
+        fetchListings(1);
+      }
+    }
+  }, [filters, sortOption, currentPage, updatePageInUrl, fetchListings]);
   
-  // Search with debounce
+  // Search with debounce - reset to page 1
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchListings(1);
+      const searchChanged = lastFetchRef.current.searchQuery !== searchQuery;
+      if (searchChanged) {
+        if (currentPage !== 1) {
+          updatePageInUrl(1);
+        } else {
+          fetchListings(1);
+        }
+      }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, currentPage, updatePageInUrl, fetchListings]);
+  
+  // Fetch when page changes in URL
+  useEffect(() => {
+    if (lastFetchRef.current.page !== currentPage) {
+      fetchListings(currentPage);
+    }
+  }, [currentPage, fetchListings]);
   
   const handleLoadMore = () => {
     if (pagination.page < pagination.totalPages) {
-      fetchListings(pagination.page + 1, true);
+      const nextPage = pagination.page + 1;
+      updatePageInUrl(nextPage);
     }
   };
   

@@ -5,6 +5,7 @@
 // =============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Home, 
   Plus, 
@@ -296,13 +297,28 @@ function SimpleBarChart({ data, label }) {
 // =============================================================================
 
 export default function SellerDashboard({ user, setUser, setView, lang = 'es', onBack, onCreateListing, onEditListing, onViewMessages }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Get active tab from URL, default to 'overview'
+  const activeTab = searchParams.get('tab') || 'overview';
+  
+  // Update tab in URL
+  const setActiveTab = useCallback((tab) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (tab === 'overview') {
+      newParams.delete('tab');
+    } else {
+      newParams.set('tab', tab);
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+  
   // Ensure we have navigation functions - use callbacks if setView not provided
   const navigateTo = (view, params) => {
     if (setView) {
       setView(view, params);
     }
   };
-  const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   

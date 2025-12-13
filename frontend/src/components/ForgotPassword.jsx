@@ -1,11 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import Input from './Input';
 import Button from './Button';
 
 export default function ForgotPassword({ onBack, onSuccess }) {
-  // Flow steps: 'email' → 'otp' → 'newPassword' → 'success'
-  const [step, setStep] = useState('email');
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Get step from URL, default to 'email'
+  const step = searchParams.get('step') || 'email';
+  
+  // Update step in URL
+  const setStep = useCallback((newStep) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (newStep === 'email') {
+      newParams.delete('step');
+    } else {
+      newParams.set('step', newStep);
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   
   // Form data
   const [email, setEmail] = useState('');

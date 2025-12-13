@@ -5,6 +5,7 @@
 // =============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Heart,
@@ -35,8 +36,22 @@ import api, { createViewTracker } from '../services/apiV2';
 // =============================================================================
 
 function ImageGallery({ images, title }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showFullscreen, setShowFullscreen] = useState(false);
+  
+  // Get current index from URL, default to 0
+  const currentIndex = parseInt(searchParams.get('image') || '0', 10);
+  
+  // Update image index in URL
+  const setCurrentIndex = useCallback((index) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (index === 0) {
+      newParams.delete('image');
+    } else {
+      newParams.set('image', index.toString());
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   
   if (!images || images.length === 0) {
     return (
@@ -46,8 +61,17 @@ function ImageGallery({ images, title }) {
     );
   }
   
-  const goNext = () => setCurrentIndex((currentIndex + 1) % images.length);
-  const goPrev = () => setCurrentIndex((currentIndex - 1 + images.length) % images.length);
+  // Ensure currentIndex is within bounds
+  const safeIndex = Math.max(0, Math.min(currentIndex, images.length - 1));
+  
+  useEffect(() => {
+    if (safeIndex !== currentIndex) {
+      setCurrentIndex(safeIndex);
+    }
+  }, [currentIndex, safeIndex, setCurrentIndex]);
+  
+  const goNext = () => setCurrentIndex((safeIndex + 1) % images.length);
+  const goPrev = () => setCurrentIndex((safeIndex - 1 + images.length) % images.length);
   
   return (
     <>
@@ -55,8 +79,8 @@ function ImageGallery({ images, title }) {
       <div className="relative">
         <div className="aspect-video rounded-xl overflow-hidden bg-gray-100">
           <img 
-            src={images[currentIndex]} 
-            alt={`${title} - ${currentIndex + 1}`}
+            src={images[safeIndex]} 
+            alt={`${title} - ${safeIndex + 1}`}
             className="w-full h-full object-cover cursor-pointer"
             onClick={() => setShowFullscreen(true)}
           />
@@ -83,7 +107,7 @@ function ImageGallery({ images, title }) {
                   key={idx}
                   onClick={() => setCurrentIndex(idx)}
                   className={`w-2 h-2 rounded-full transition-colors ${
-                    idx === currentIndex ? 'bg-white' : 'bg-white/50'
+                    idx === safeIndex ? 'bg-white' : 'bg-white/50'
                   }`}
                 />
               ))}
@@ -100,7 +124,7 @@ function ImageGallery({ images, title }) {
               key={idx}
               onClick={() => setCurrentIndex(idx)}
               className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
-                idx === currentIndex ? 'border-indigo-500' : 'border-transparent'
+                idx === safeIndex ? 'border-indigo-500' : 'border-transparent'
               }`}
             >
               <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
@@ -127,8 +151,8 @@ function ImageGallery({ images, title }) {
           </button>
           
           <img 
-            src={images[currentIndex]} 
-            alt={`${title} - ${currentIndex + 1}`}
+            src={images[safeIndex]} 
+            alt={`${title} - ${safeIndex + 1}`}
             className="max-w-full max-h-full object-contain"
           />
           
@@ -140,7 +164,7 @@ function ImageGallery({ images, title }) {
           </button>
           
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white">
-            {currentIndex + 1} / {images.length}
+            {safeIndex + 1} / {images.length}
           </div>
         </div>
       )}

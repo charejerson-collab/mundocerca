@@ -229,6 +229,7 @@ export default function AppRoutes({
         <Route path="/seller-dashboard/edit/:listingId" element={<EditListingRoute />} />
         <Route path="/marketplace" element={<MarketplaceRoute />} />
         <Route path="/listing/:listingId" element={<ListingDetailRoute />} />
+        <Route path="/messages/:conversationId" element={<MessagesRoute />} />
         <Route path="/messages" element={<MessagesRoute />} />
       </Routes>
     </ErrorBoundary>

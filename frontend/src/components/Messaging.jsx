@@ -5,6 +5,7 @@
 // =============================================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   MessageSquare,
   Send,
@@ -421,13 +422,18 @@ export function MessageThread({
 // =============================================================================
 
 export default function MessagingPage({ user, onBack }) {
+  const { conversationId } = useParams();
+  const navigate = useNavigate();
+  
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
-  const [showMobileThread, setShowMobileThread] = useState(false);
+  
+  // Determine if we should show mobile thread view (when conversationId is in URL on mobile)
+  const showMobileThread = !!conversationId;
   
   // Fetch conversations
   useEffect(() => {
@@ -445,6 +451,18 @@ export default function MessagingPage({ user, onBack }) {
     
     fetchConversations();
   }, []);
+  
+  // Set active conversation when conversationId changes in URL
+  useEffect(() => {
+    if (conversationId) {
+      const conversation = conversations.find(c => c.id.toString() === conversationId);
+      if (conversation) {
+        setActiveConversation(conversation);
+      }
+    } else {
+      setActiveConversation(null);
+    }
+  }, [conversationId, conversations]);
   
   // Fetch messages when conversation selected
   useEffect(() => {
@@ -485,8 +503,7 @@ export default function MessagingPage({ user, onBack }) {
   }, [activeConversation?.id]);
   
   const handleSelectConversation = (conversation) => {
-    setActiveConversation(conversation);
-    setShowMobileThread(true);
+    navigate(`/messages/${conversation.id}`);
   };
   
   const handleSendMessage = async (content) => {
@@ -513,8 +530,7 @@ export default function MessagingPage({ user, onBack }) {
   };
   
   const handleBack = () => {
-    setShowMobileThread(false);
-    setActiveConversation(null);
+    navigate('/messages');
   };
   
   return (
