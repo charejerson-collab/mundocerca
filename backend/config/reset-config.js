@@ -1,0 +1,7 @@
+// Minimal reset config for backend
+export const RESET_CONFIG = {
+  OTP_TTL_MINUTES: 10,
+  MAX_REQUESTS_PER_EMAIL_HOUR: 5,
+  RESEND_COOLDOWN_SECONDS: 60,
+  MAX_VERIFY_ATTEMPTS: 5,
+};
