@@ -81,7 +81,7 @@ function CategoryGrid() {
           return (
             <div 
               key={cat.id} 
-              onClick={() => { setSearchMode('pros'); navigateTo('search-pros', { catId: cat.id }); }} 
+              onClick={() => navigateTo('search-pros', { catId: cat.id })} 
               className="group bg-white p-6 rounded-2xl shadow-md hover:shadow-xl border border-gray-100 cursor-pointer transition-all duration-300 hover:-translate-y-1"
             >
               <div className="flex items-center gap-4">
@@ -411,19 +411,12 @@ function VerificationPage() {
 
 // Main layout component for routes that show navbar/hero/footer
 function MainLayout({ children }) {
-  const { searchMode, setSearchMode, searchText, setSearchText, lang, toasts, removeToast, setView } = useApp();
+  const { toasts, removeToast } = useApp();
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <Hero
-        searchMode={searchMode}
-        setSearchMode={setSearchMode}
-        searchText={searchText}
-        setSearchText={setSearchText}
-        setView={setView}
-        lang={lang}
-      />
+      <Hero />
       {children}
       <footer className="mt-16 bg-gradient-to-b from-gray-50 to-gray-100 border-t border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-12">
@@ -504,7 +497,7 @@ function MainLayout({ children }) {
 // =============================================================================
 
 function HomeRoute() {
-  const { listings, lang, formatMXN, navigateTo, setSearchMode } = useApp();
+  const { listings, lang, formatMXN, navigateTo } = useApp();
   
   return (
     <MainLayout>
@@ -516,7 +509,7 @@ function HomeRoute() {
             <p className="text-gray-600 mt-1">{lang === 'en' ? 'Discover your perfect place to live' : 'Descubre tu lugar perfecto para vivir'}</p>
           </div>
           <button 
-            onClick={() => { setSearchMode('homes'); navigateTo('search-homes'); }} 
+            onClick={() => navigateTo('search-homes')} 
             className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
           >
             {lang === 'en' ? 'View all' : 'Ver todos'}
@@ -564,25 +557,19 @@ function VerifyRoute() {
 }
 
 function PlansPageRoute() {
-  const { setView, setSelectedPlan, lang, user } = useApp();
-  return <PlansPage setView={setView} setSelectedPlan={setSelectedPlan} lang={lang} user={user} />;
+  return <PlansPage />;
 }
 
 function CreateAccountPageRoute() {
-  const { setView, setUser, lang } = useApp();
-  const [searchParams] = useSearchParams();
-  const planFromUrl = searchParams.get('plan') || 'basic';
-  return <CreateAccountPage selectedPlan={planFromUrl} setView={setView} setUser={setUser} lang={lang} />;
+  return <CreateAccountPage />;
 }
 
 function ConfirmSubscriptionPageRoute() {
-  const { selectedPlan, setView, setUser, lang } = useApp();
-  return <ConfirmSubscriptionPage selectedPlan={selectedPlan} setView={setView} setUser={setUser} lang={lang} />;
+  return <ConfirmSubscriptionPage />;
 }
 
 function DashboardRoute() {
-  const { user, setUser, setView, navigateTo, lang } = useApp();
-  return <Dashboard user={user} setUser={setUser} setView={setView} navigateTo={navigateTo} lang={lang} />;
+  return <Dashboard />;
 }
 
 function LoginRoute() {
@@ -601,13 +588,9 @@ function LoginRoute() {
 }
 
 function SellerDashboardRoute() {
-  const { user, setUser, lang, navigateTo } = useApp();
+  const { navigateTo } = useApp();
   return (
     <SellerDashboard 
-      user={user}
-      setUser={setUser}
-      setView={(v, p) => navigateTo(v, p || {})}
-      lang={lang}
       onBack={() => navigateTo('dashboard')}
       onCreateListing={() => navigateTo('create-listing')}
       onEditListing={(listing) => navigateTo('edit-listing', { listingId: listing.id })}
@@ -617,10 +600,9 @@ function SellerDashboardRoute() {
 }
 
 function CreateListingRoute() {
-  const { user, lang, navigateTo, addToast } = useApp();
+  const { lang, navigateTo, addToast } = useApp();
   return (
     <ListingForm 
-      user={user}
       onBack={() => navigateTo('seller-dashboard')}
       onSuccess={(listing) => {
         addToast(lang === 'en' ? 'Listing created successfully!' : '¡Anuncio creado exitosamente!', 'success');
@@ -631,11 +613,10 @@ function CreateListingRoute() {
 }
 
 function EditListingRoute() {
-  const { user, lang, navigateTo, addToast } = useApp();
+  const { lang, navigateTo, addToast } = useApp();
   const params = useParams();
   return (
     <ListingForm 
-      user={user}
       listingId={params.listingId}
       onBack={() => navigateTo('seller-dashboard')}
       onSuccess={(listing) => {
@@ -647,10 +628,9 @@ function EditListingRoute() {
 }
 
 function MarketplaceRoute() {
-  const { user, navigateTo } = useApp();
+  const { navigateTo } = useApp();
   return (
     <Marketplace 
-      user={user}
       onBack={() => navigateTo('home')}
       onViewListing={(listing) => navigateTo('listing-detail', { listingId: listing.id })}
     />
@@ -658,12 +638,11 @@ function MarketplaceRoute() {
 }
 
 function ListingDetailRoute() {
-  const { user, navigateTo } = useApp();
+  const { navigateTo } = useApp();
   const params = useParams();
   return (
     <ListingDetail 
       listingId={params.listingId}
-      user={user}
       onBack={() => navigateTo('marketplace')}
       onMessage={(listing) => {}}
     />
@@ -671,10 +650,9 @@ function ListingDetailRoute() {
 }
 
 function MessagesRoute() {
-  const { user, navigateTo } = useApp();
+  const { navigateTo } = useApp();
   return (
     <MessagingPage 
-      user={user}
       onBack={() => navigateTo('seller-dashboard')}
     />
   );

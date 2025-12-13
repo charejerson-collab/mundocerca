@@ -3,6 +3,8 @@ import { Sparkles, Shield, Check } from 'lucide-react';
 import Input from './Input';
 import Button from './Button';
 import api from '../api';
+import { useApp } from '../contexts/AppContext';
+import { useSearchParams } from 'react-router-dom';
 
 const PLAN_DETAILS = {
   basic: { name: 'Basic Plan', price: 199 },
@@ -10,7 +12,11 @@ const PLAN_DETAILS = {
   business: { name: 'Business Plan', price: 699 }
 };
 
-export default function CreateAccountPage({ selectedPlan, setView, setUser, lang }) {
+export default function CreateAccountPage() {
+  const { navigateTo, setUser, lang, selectedPlan } = useApp();
+  const [searchParams] = useSearchParams();
+  const planFromUrl = searchParams.get('plan') || selectedPlan || 'basic';
+  
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -20,7 +26,7 @@ export default function CreateAccountPage({ selectedPlan, setView, setUser, lang
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const plan = PLAN_DETAILS[selectedPlan] || PLAN_DETAILS.basic;
+  const plan = PLAN_DETAILS[planFromUrl] || PLAN_DETAILS.basic;
 
   const handleChange = (field) => (e) => {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
@@ -61,7 +67,7 @@ export default function CreateAccountPage({ selectedPlan, setView, setUser, lang
         }));
 
         setLoading(false);
-        setView('confirm-subscription');
+        navigateTo('confirm-subscription');
       }
     } catch (err) {
       setError(err.error || (lang === 'en' ? 'Registration failed. Please try again.' : 'Error al registrarse. Inténtalo de nuevo.'));
@@ -192,7 +198,7 @@ export default function CreateAccountPage({ selectedPlan, setView, setUser, lang
         {/* Back Link */}
         <div className="text-center mt-6">
           <button 
-            onClick={() => setView('plans')}
+            onClick={() => navigateTo('plans')}
             className="text-indigo-600 hover:text-indigo-700 font-medium"
           >
             ← {lang === 'en' ? 'Back to Plans' : 'Volver a Planes'}

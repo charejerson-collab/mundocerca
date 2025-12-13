@@ -13,6 +13,7 @@ import {
   Sparkles,
   ChevronRight
 } from 'lucide-react';
+import { useApp } from '../contexts/AppContext';
 
 const PLAN_DETAILS = {
   basic: { name: 'Basic Plan', price: 199, maxListings: 2, icon: '📦' },
@@ -20,27 +21,19 @@ const PLAN_DETAILS = {
   business: { name: 'Business Plan', price: 699, maxListings: 25, icon: '🏢' }
 };
 
-export default function Dashboard({ user, setUser, setView, navigateTo, lang }) {
+export default function Dashboard() {
+  const { user, setUser, navigateTo, lang } = useApp();
   const plan = PLAN_DETAILS[user?.subscriptionPlan] || PLAN_DETAILS.basic;
   
   const freeMonthEnds = user?.freeMonthEnds 
     ? new Date(user.freeMonthEnds).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-MX', { month: 'long', day: 'numeric', year: 'numeric' })
     : null;
 
-  // Use navigateTo if available, fallback to setView
-  const goTo = (view, params) => {
-    if (navigateTo) {
-      navigateTo(view, params);
-    } else {
-      setView(view);
-    }
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('mc_user');
     localStorage.removeItem('mc_token');
     setUser(null);
-    setView('home');
+    navigateTo('home');
   };
 
   // Mock stats
@@ -57,28 +50,28 @@ export default function Dashboard({ user, setUser, setView, navigateTo, lang }) 
       desc: lang === 'en' ? 'Start listing your property' : 'Comienza a listar tu propiedad',
       icon: Plus,
       primary: true,
-      action: () => goTo('create-listing')
+      action: () => navigateTo('create-listing')
     },
     { 
       title: lang === 'en' ? 'Manage Listings' : 'Administrar Listados', 
       desc: lang === 'en' ? 'View and edit your properties' : 'Ver y editar tus propiedades',
       icon: List,
       primary: false,
-      action: () => goTo('seller-dashboard')
+      action: () => navigateTo('seller-dashboard')
     },
     { 
       title: lang === 'en' ? 'Billing & Plan' : 'Facturación y Plan', 
       desc: lang === 'en' ? 'Manage your subscription' : 'Administra tu suscripción',
       icon: CreditCard,
       primary: false,
-      action: () => goTo('plans')
+      action: () => navigateTo('plans')
     },
     { 
       title: lang === 'en' ? 'Settings' : 'Configuración', 
       desc: lang === 'en' ? 'Account preferences' : 'Preferencias de cuenta',
       icon: Settings,
       primary: false,
-      action: () => goTo('seller-dashboard')
+      action: () => navigateTo('seller-dashboard')
     }
   ];
 
@@ -89,7 +82,7 @@ export default function Dashboard({ user, setUser, setView, navigateTo, lang }) 
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button onClick={() => setView('home')} className="flex items-center gap-2">
+              <button onClick={() => navigateTo('home')} className="flex items-center gap-2">
                 <Home size={22} className="text-indigo-600" />
                 <span className="text-xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Mundo Cerca</span>
               </button>
@@ -180,7 +173,7 @@ export default function Dashboard({ user, setUser, setView, navigateTo, lang }) 
               </div>
             </div>
             <button 
-              onClick={() => setView('plans')}
+              onClick={() => navigateTo('plans')}
               className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg font-medium transition-colors"
             >
               {lang === 'en' ? 'Upgrade Plan' : 'Mejorar Plan'}
@@ -238,7 +231,7 @@ export default function Dashboard({ user, setUser, setView, navigateTo, lang }) 
               : 'Comienza a mostrar tus propiedades para llegar a miles de posibles inquilinos en todo México.'}
           </p>
           <button 
-            onClick={() => setView('create-listing')}
+            onClick={() => navigateTo('create-listing')}
             className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200"
           >
             <span className="flex items-center gap-2">

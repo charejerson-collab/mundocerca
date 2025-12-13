@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Sparkles, Shield, CreditCard, Calendar } from 'lucide-react';
 import api from '../api';
+import { useApp } from '../contexts/AppContext';
 
 const PLAN_DETAILS = {
   basic: { name: 'Basic Plan', price: 199, icon: '📦' },
@@ -8,7 +9,8 @@ const PLAN_DETAILS = {
   business: { name: 'Business Plan', price: 699, icon: '🏢' }
 };
 
-export default function ConfirmSubscriptionPage({ selectedPlan, setView, setUser, lang }) {
+export default function ConfirmSubscriptionPage() {
+  const { selectedPlan, navigateTo, setUser, lang } = useApp();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
@@ -40,7 +42,7 @@ export default function ConfirmSubscriptionPage({ selectedPlan, setView, setUser
         setUser(activeUser);
         
         setLoading(false);
-        setView('dashboard');
+        navigateTo('dashboard');
       } else {
         throw new Error('Subscription activation failed');
       }
@@ -190,7 +192,7 @@ export default function ConfirmSubscriptionPage({ selectedPlan, setView, setUser
         {/* Back Link */}
         <div className="text-center mt-6">
           <button 
-            onClick={() => setView('create-account')}
+            onClick={() => navigateTo('create-account')}
             className="text-indigo-600 hover:text-indigo-700 font-medium"
           >
             ← {lang === 'en' ? 'Back to Account' : 'Volver a la Cuenta'}

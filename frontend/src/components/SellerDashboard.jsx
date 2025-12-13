@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useApp } from '../contexts/AppContext';
 import { 
   Home, 
   Plus, 
@@ -296,7 +297,8 @@ function SimpleBarChart({ data, label }) {
 // MAIN DASHBOARD COMPONENT
 // =============================================================================
 
-export default function SellerDashboard({ user, setUser, setView, lang = 'es', onBack, onCreateListing, onEditListing, onViewMessages }) {
+export default function SellerDashboard({ onBack, onCreateListing, onEditListing, onViewMessages }) {
+  const { user, setUser, navigateTo, lang } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Get active tab from URL, default to 'overview'
@@ -316,13 +318,6 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
     }
     setSearchParams(newParams, { replace: true });
   }, [searchParams, setSearchParams]);
-  
-  // Ensure we have navigation functions - use callbacks if setView not provided
-  const navigateTo = (view, params) => {
-    if (setView) {
-      setView(view, params);
-    }
-  };
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -460,11 +455,11 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
     localStorage.removeItem('mc_user');
     localStorage.removeItem('mc_token');
     setUser(null);
-    setView('home');
+    navigateTo('home');
   };
   
   const handleEditListing = (listing) => {
-    setView('edit-listing', { listingId: listing.id });
+    navigateTo('edit-listing', { listingId: listing.id });
   };
   
   const handleDeleteListing = async (listing) => {
@@ -505,11 +500,11 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
   };
   
   const handleUpgradePlan = async () => {
-    setView('plans');
+    navigateTo('plans');
   };
   
   const handleCreateListing = () => {
-    setView('create-listing');
+    navigateTo('create-listing');
   };
   
   // ==========================================================================
@@ -575,7 +570,7 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button onClick={() => setView('home')} className="flex items-center gap-2">
+              <button onClick={() => navigateTo('home')} className="flex items-center gap-2">
                 <Home size={22} className="text-indigo-600" />
                 <span className="text-xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                   Mundo Cerca

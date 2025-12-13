@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useApp } from '../contexts/AppContext';
 import {
   MessageSquare,
   Send,
@@ -421,7 +422,8 @@ export function MessageThread({
 // FULL MESSAGING PAGE
 // =============================================================================
 
-export default function MessagingPage({ user, onBack }) {
+export default function MessagingPage({ onBack }) {
+  const { user } = useApp();
   const { conversationId } = useParams();
   const navigate = useNavigate();
   

@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useApp } from '../contexts/AppContext';
 
-export default function Hero({ searchMode, setSearchMode, searchText, setSearchText, setView, lang }) {
+export default function Hero() {
   const navigate = useNavigate();
+  const { searchMode, setSearchMode, searchText, setSearchText, lang } = useApp();
   return (
     <section className="bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-800 text-white py-16 md:py-20">
       <div className="max-w-6xl mx-auto px-4">

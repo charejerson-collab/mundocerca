@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Package, Rocket, Building2, Shield, Users, TrendingUp, Sparkles, Loader } from 'lucide-react';
 import api from '../api';
+import { useApp } from '../contexts/AppContext';
 
 const PLANS = [
   {
@@ -53,7 +54,8 @@ const WHY_JOIN = [
   { icon: Sparkles, text: 'Simple setup, professional dashboard, full control' }
 ];
 
-export default function PlansPage({ setView, setSelectedPlan, lang, user }) {
+export default function PlansPage() {
+  const { navigateTo, setSelectedPlan, lang, user } = useApp();
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState(null);
 
@@ -61,7 +63,7 @@ export default function PlansPage({ setView, setSelectedPlan, lang, user }) {
     // If user is not logged in, redirect to create account with selected plan
     if (!user) {
       setSelectedPlan(planId);
-      setView('create-account', { plan: planId });
+      navigateTo('create-account', { plan: planId });
       return;
     }
 
@@ -222,7 +224,7 @@ export default function PlansPage({ setView, setSelectedPlan, lang, user }) {
       {/* Back Button */}
       <div className="text-center pb-8">
         <button 
-          onClick={() => setView('home')}
+          onClick={() => navigateTo('home')}
           className="text-indigo-600 hover:text-indigo-700 font-medium"
         >
           ← {lang === 'en' ? 'Back to Home' : 'Volver al Inicio'}

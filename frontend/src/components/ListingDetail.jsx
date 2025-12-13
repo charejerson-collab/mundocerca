@@ -294,7 +294,7 @@ function AmenitiesList({ amenities }) {
 // MAIN LISTING DETAIL COMPONENT
 // =============================================================================
 
-export default function ListingDetail({ listingId, onBack, onMessage, user }) {
+export default function ListingDetail({ listingId, onBack, onMessage }) {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

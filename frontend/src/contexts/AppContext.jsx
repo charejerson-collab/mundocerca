@@ -221,11 +221,6 @@ export function AppProvider({ children }) {
     navigate(path);
   }, [navigate, selectedPlan]);
   
-  // Helper function to replace setView calls
-  const setView = useCallback((targetView, viewParams = {}) => {
-    navigateTo(targetView, viewParams);
-  }, [navigateTo]);
-
   // Verify user session on mount and fetch subscription status
   useEffect(() => {
     const verifySession = async () => {
@@ -301,7 +296,6 @@ export function AppProvider({ children }) {
   const value = {
     // Navigation
     navigateTo,
-    setView,
     
     // Auth
     user,
