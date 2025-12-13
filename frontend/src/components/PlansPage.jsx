@@ -61,7 +61,7 @@ export default function PlansPage({ setView, setSelectedPlan, lang, user }) {
     // If user is not logged in, redirect to create account with selected plan
     if (!user) {
       setSelectedPlan(planId);
-      setView('create-account');
+      setView('create-account', { plan: planId });
       return;
     }
 

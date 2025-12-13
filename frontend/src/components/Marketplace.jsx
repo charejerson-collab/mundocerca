@@ -333,17 +333,99 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
   // Get page from URL, default to 1
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
   
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState({
-    category: 'all',
-    city: 'all',
-    priceRange: 'all',
-    minPrice: null,
-    maxPrice: null,
-    bedrooms: null,
-    featured: false,
-  });
-  const [sortOption, setSortOption] = useState('created_at_desc');
+  // Derive filters, sortOption, and searchQuery from URL
+  const searchQuery = searchParams.get('q') || '';
+  const sortOption = searchParams.get('sort') || 'created_at_desc';
+  const filters = {
+    category: searchParams.get('category') || 'all',
+    city: searchParams.get('city') || 'all',
+    priceRange: searchParams.get('priceRange') || 'all',
+    minPrice: searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')) : null,
+    maxPrice: searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')) : null,
+    bedrooms: searchParams.get('bedrooms') ? parseInt(searchParams.get('bedrooms'), 10) : null,
+    featured: searchParams.get('featured') === 'true',
+  };
+  
+  // Local state for search input (for debouncing)
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  
+  // Update searchQuery in URL (debounced)
+  const setSearchQuery = useCallback((query) => {
+    setSearchInput(query);
+  }, []);
+  
+  // Debounce search query updates to URL
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== searchQuery) {
+        const newParams = new URLSearchParams(searchParams);
+        if (searchInput) {
+          newParams.set('q', searchInput);
+        } else {
+          newParams.delete('q');
+        }
+        // Reset to page 1 when search changes
+        newParams.delete('page');
+        setSearchParams(newParams, { replace: true });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput, searchQuery, searchParams, setSearchParams]);
+  
+  // Sync searchInput with URL when it changes externally
+  useEffect(() => {
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
+  
+  // Update filters in URL
+  const setFilters = useCallback((newFilters) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (newFilters.category && newFilters.category !== 'all') {
+      newParams.set('category', newFilters.category);
+    } else {
+      newParams.delete('category');
+    }
+    if (newFilters.city && newFilters.city !== 'all') {
+      newParams.set('city', newFilters.city);
+    } else {
+      newParams.delete('city');
+    }
+    if (newFilters.priceRange && newFilters.priceRange !== 'all') {
+      newParams.set('priceRange', newFilters.priceRange);
+      if (newFilters.minPrice) newParams.set('minPrice', newFilters.minPrice.toString());
+      if (newFilters.maxPrice) newParams.set('maxPrice', newFilters.maxPrice.toString());
+    } else {
+      newParams.delete('priceRange');
+      newParams.delete('minPrice');
+      newParams.delete('maxPrice');
+    }
+    if (newFilters.bedrooms !== null && newFilters.bedrooms !== undefined) {
+      newParams.set('bedrooms', newFilters.bedrooms.toString());
+    } else {
+      newParams.delete('bedrooms');
+    }
+    if (newFilters.featured) {
+      newParams.set('featured', 'true');
+    } else {
+      newParams.delete('featured');
+    }
+    // Reset to page 1 when filters change
+    newParams.delete('page');
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+  
+  // Update sortOption in URL
+  const setSortOption = useCallback((sort) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (sort && sort !== 'created_at_desc') {
+      newParams.set('sort', sort);
+    } else {
+      newParams.delete('sort');
+    }
+    // Reset to page 1 when sort changes
+    newParams.delete('page');
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   
   // Get viewMode from URL, default to 'grid'
   const viewMode = searchParams.get('view') || 'grid';
@@ -431,41 +513,27 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
     }
   }, [filters, sortOption, searchQuery]);
   
-  // Initial fetch and on filter change - reset to page 1
+  // Fetch listings when URL params change (filters, sort, search, page)
   useEffect(() => {
-    const filtersChanged = JSON.stringify(lastFetchRef.current.filters) !== JSON.stringify(filters);
-    const sortChanged = lastFetchRef.current.sortOption !== sortOption;
+    const currentFilters = JSON.stringify(filters);
+    const currentSort = sortOption;
+    const currentSearch = searchQuery;
     
-    if (filtersChanged || sortChanged) {
-      if (currentPage !== 1) {
-        updatePageInUrl(1);
-      } else {
-        fetchListings(1);
-      }
-    }
-  }, [filters, sortOption, currentPage, updatePageInUrl, fetchListings]);
-  
-  // Search with debounce - reset to page 1
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const searchChanged = lastFetchRef.current.searchQuery !== searchQuery;
-      if (searchChanged) {
-        if (currentPage !== 1) {
-          updatePageInUrl(1);
-        } else {
-          fetchListings(1);
-        }
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, currentPage, updatePageInUrl, fetchListings]);
-  
-  // Fetch when page changes in URL
-  useEffect(() => {
-    if (lastFetchRef.current.page !== currentPage) {
+    const filtersChanged = lastFetchRef.current.filters !== currentFilters;
+    const sortChanged = lastFetchRef.current.sortOption !== currentSort;
+    const searchChanged = lastFetchRef.current.searchQuery !== currentSearch;
+    const pageChanged = lastFetchRef.current.page !== currentPage;
+    
+    if (filtersChanged || sortChanged || searchChanged) {
+      // Filters/sort/search changed - fetch page 1
+      fetchListings(1);
+      lastFetchRef.current = { page: 1, filters: currentFilters, sortOption: currentSort, searchQuery: currentSearch };
+    } else if (pageChanged) {
+      // Only page changed - fetch that page
       fetchListings(currentPage);
+      lastFetchRef.current = { page: currentPage, filters: currentFilters, sortOption: currentSort, searchQuery: currentSearch };
     }
-  }, [currentPage, fetchListings]);
+  }, [filters, sortOption, searchQuery, currentPage, fetchListings]);
   
   const handleLoadMore = () => {
     if (pagination.page < pagination.totalPages) {
@@ -509,12 +577,12 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
               <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                value={searchQuery}
+                value={searchInput}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar por título, descripción, ubicación..."
                 className="w-full pl-12 pr-4 py-3 bg-gray-100 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
               />
-              {searchQuery && (
+              {searchInput && (
                 <button
                   onClick={() => setSearchQuery('')}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -544,7 +612,7 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
               {CATEGORIES.map(cat => (
                 <button
                   key={cat.id}
-                  onClick={() => setFilters(prev => ({ ...prev, category: cat.id }))}
+                  onClick={() => setFilters({ ...filters, category: cat.id })}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                     filters.category === cat.id
                       ? 'bg-indigo-600 text-white'

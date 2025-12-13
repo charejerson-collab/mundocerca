@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, useParams } from 'react-router-dom';
+import { Routes, Route, useParams, useSearchParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 
 // Components
@@ -80,7 +80,11 @@ export default function AppRoutes({
   // Route wrapper components
   const PlansPageRoute = () => <PlansPage setView={setView} setSelectedPlan={setSelectedPlan} lang={lang} user={user} />;
   
-  const CreateAccountPageRoute = () => <CreateAccountPage selectedPlan={selectedPlan} setView={setView} setUser={setUser} lang={lang} />;
+  const CreateAccountPageRoute = () => {
+    const [searchParams] = useSearchParams();
+    const planFromUrl = searchParams.get('plan') || selectedPlan || 'basic';
+    return <CreateAccountPage selectedPlan={planFromUrl} setView={setView} setUser={setUser} lang={lang} />;
+  };
   
   const ConfirmSubscriptionPageRoute = () => <ConfirmSubscriptionPage selectedPlan={selectedPlan} setView={setView} setUser={setUser} lang={lang} />;
   

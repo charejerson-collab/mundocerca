@@ -426,11 +426,15 @@ export default function MessagingPage({ user, onBack }) {
   const navigate = useNavigate();
   
   const [conversations, setConversations] = useState([]);
-  const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  
+  // Derive activeConversation directly from URL params
+  const activeConversation = conversationId && conversations.length > 0
+    ? conversations.find(c => c.id.toString() === conversationId) || null
+    : null;
   
   // Determine if we should show mobile thread view (when conversationId is in URL on mobile)
   const showMobileThread = !!conversationId;
@@ -452,34 +456,25 @@ export default function MessagingPage({ user, onBack }) {
     fetchConversations();
   }, []);
   
-  // Set active conversation when conversationId changes in URL
-  useEffect(() => {
-    if (conversationId) {
-      const conversation = conversations.find(c => c.id.toString() === conversationId);
-      if (conversation) {
-        setActiveConversation(conversation);
-      }
-    } else {
-      setActiveConversation(null);
-    }
-  }, [conversationId, conversations]);
-  
   // Fetch messages when conversation selected
   useEffect(() => {
-    if (!activeConversation) return;
+    if (!conversationId) {
+      setMessages([]);
+      return;
+    }
     
     const abortController = new AbortController();
     let isMounted = true;
     
     const fetchMessages = async () => {
-      if (!isMounted || abortController.signal.aborted) return;
+      if (!isMounted || abortController.signal.aborted || !conversationId) return;
       setLoadingMessages(true);
       try {
-        const data = await api.messaging.getMessages(activeConversation.id, { signal: abortController.signal });
+        const data = await api.messaging.getMessages(conversationId, { signal: abortController.signal });
         if (isMounted && !abortController.signal.aborted) {
           setMessages(data);
           // Mark as read
-          await api.messaging.markAsRead(activeConversation.id, { signal: abortController.signal });
+          await api.messaging.markAsRead(conversationId, { signal: abortController.signal });
         }
       } catch (err) {
         if (err.name === 'AbortError') return;
@@ -500,23 +495,23 @@ export default function MessagingPage({ user, onBack }) {
       abortController.abort();
       clearInterval(interval);
     };
-  }, [activeConversation?.id]);
+  }, [conversationId]);
   
   const handleSelectConversation = (conversation) => {
     navigate(`/messages/${conversation.id}`);
   };
   
   const handleSendMessage = async (content) => {
-    if (!activeConversation) return;
+    if (!conversationId) return;
     
     setSending(true);
     try {
-      const newMessage = await api.messaging.sendMessage(activeConversation.id, content);
+      const newMessage = await api.messaging.sendMessage(conversationId, content);
       setMessages(prev => [...prev, newMessage]);
       
       // Update conversation's last message
       setConversations(prev => prev.map(c => {
-        if (c.id === activeConversation.id) {
+        if (c.id.toString() === conversationId) {
           return { ...c, last_message: newMessage };
         }
         return c;

@@ -1,6 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Hero({ searchMode, setSearchMode, searchText, setSearchText, setView, lang }) {
+  const navigate = useNavigate();
   return (
     <section className="bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-800 text-white py-16 md:py-20">
       <div className="max-w-6xl mx-auto px-4">
@@ -19,12 +21,12 @@ export default function Hero({ searchMode, setSearchMode, searchText, setSearchT
                 aria-label="Search"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { setView(searchMode === 'homes' ? 'search-homes' : 'search-pros'); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { navigate(searchMode === 'homes' ? '/search/homes' : '/search/pros'); } }}
                 className="flex-1 min-w-0 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder={searchMode === 'homes' ? (lang === 'en' ? 'Search homes, city...' : 'Busca casas, ciudad...') : (lang === 'en' ? 'Search professionals...' : 'Busca profesionales...')}
               />
               <button
-                onClick={() => setView(searchMode === 'homes' ? 'search-homes' : 'search-pros')}
+                onClick={() => navigate(searchMode === 'homes' ? '/search/homes' : '/search/pros')}
                 className="bg-indigo-600 text-white px-4 sm:px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors w-full sm:w-auto mt-2 sm:mt-0"
               >
                 {lang === 'en' ? 'Search' : 'Buscar'}
