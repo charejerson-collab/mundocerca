@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import Input from './Input';
@@ -6,7 +7,21 @@ import Button from './Button';
 import ForgotPassword from './ForgotPassword';
 
 export default function Auth({ onLogin }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Get mode from URL, default to 'login'
+  const mode = searchParams.get('mode') || 'login';
+  
+  // Update mode in URL
+  const setMode = useCallback((newMode) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (newMode === 'login') {
+      newParams.delete('mode');
+    } else {
+      newParams.set('mode', newMode);
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');

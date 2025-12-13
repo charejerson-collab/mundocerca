@@ -344,7 +344,21 @@ export default function Marketplace({ onViewListing, onContact, onBack }) {
     featured: false,
   });
   const [sortOption, setSortOption] = useState('created_at_desc');
-  const [viewMode, setViewMode] = useState('grid');
+  
+  // Get viewMode from URL, default to 'grid'
+  const viewMode = searchParams.get('view') || 'grid';
+  
+  // Update viewMode in URL
+  const setViewMode = useCallback((mode) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (mode === 'grid') {
+      newParams.delete('view');
+    } else {
+      newParams.set('view', mode);
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+  
   const [showFilters, setShowFilters] = useState(false);
   
   const lastFetchRef = useRef({ page: 0, filters: null, sortOption: null, searchQuery: null });

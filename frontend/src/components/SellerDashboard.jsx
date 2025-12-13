@@ -310,6 +310,10 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
     } else {
       newParams.set('tab', tab);
     }
+    // Clear conversationId when switching away from messages tab
+    if (tab !== 'messages') {
+      newParams.delete('conversationId');
+    }
     setSearchParams(newParams, { replace: true });
   }, [searchParams, setSearchParams]);
   
@@ -326,11 +330,27 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
   const [dashboardData, setDashboardData] = useState(null);
   const [listings, setListings] = useState([]);
   const [conversations, setConversations] = useState([]);
-  const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
   const [subscription, setSubscription] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  
+  // Get active conversation from URL when on messages tab
+  const conversationIdFromUrl = searchParams.get('conversationId');
+  const activeConversation = conversationIdFromUrl && conversations.length > 0
+    ? conversations.find(c => c.id.toString() === conversationIdFromUrl) || null
+    : null;
+  
+  // Update conversation in URL
+  const setActiveConversation = useCallback((conversation) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (conversation) {
+      newParams.set('conversationId', conversation.id.toString());
+    } else {
+      newParams.delete('conversationId');
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   
   const plan = PLAN_DETAILS[subscription?.plan || user?.subscriptionPlan || 'free'];
   
@@ -384,6 +404,7 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
   }, []);
   
   const fetchMessages = useCallback(async (conversationId) => {
+    if (!conversationId) return;
     try {
       const result = await api.messages.getMessages(conversationId);
       setMessages(result.messages || []);
@@ -393,6 +414,15 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
       console.error('Failed to fetch messages:', error);
     }
   }, [fetchUnreadCount]);
+  
+  // Fetch messages when conversationId changes in URL
+  useEffect(() => {
+    if (activeConversation && activeTab === 'messages') {
+      fetchMessages(activeConversation.id);
+    } else {
+      setMessages([]);
+    }
+  }, [activeConversation?.id, activeTab, fetchMessages]);
   
   // Initial load
   useEffect(() => {
@@ -461,7 +491,6 @@ export default function SellerDashboard({ user, setUser, setView, lang = 'es', o
   
   const handleSelectConversation = async (conversation) => {
     setActiveConversation(conversation);
-    await fetchMessages(conversation.id);
   };
   
   const handleSendMessage = async () => {
