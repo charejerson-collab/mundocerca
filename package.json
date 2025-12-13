@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": "24.x"
+  },
   "dependencies": {
     "react-router-dom": "^7.10.1"
   }

@@ -67,7 +67,7 @@ function ErrorPage({ error, resetErrorBoundary }) {
 // =============================================================================
 
 function CategoryGrid() {
-  const { lang, setSearchMode, navigateTo } = useApp();
+  const { lang, navigateTo } = useApp();
   
   return (
     <section className="max-w-6xl mx-auto px-4 py-12">
@@ -411,7 +411,7 @@ function VerificationPage() {
 
 // Main layout component for routes that show navbar/hero/footer
 function MainLayout({ children }) {
-  const { toasts, removeToast } = useApp();
+  const { toasts, removeToast, lang } = useApp();
 
   return (
     <div className="min-h-screen bg-gray-50">
