@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ErrorBoundary } from 'react-error-boundary';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Scale,
   Stethoscope,
@@ -13,47 +13,9 @@ import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ListingCard from './components/ListingCard';
 import ProfessionalCard from './components/ProfessionalCard';
-import Auth from './components/Auth';
-import PlansPage from './components/PlansPage';
-import CreateAccountPage from './components/CreateAccountPage';
-import ConfirmSubscriptionPage from './components/ConfirmSubscriptionPage';
-import Dashboard from './components/Dashboard';
 
-// New Marketplace Components
-import SellerDashboard from './components/SellerDashboard';
-import ListingForm from './components/ListingForm';
-import Marketplace from './components/Marketplace';
-import ListingDetail from './components/ListingDetail';
-import MessagingPage, { NewConversationModal } from './components/Messaging';
+import AppRoutes from './routes';
 
-// =============================================================================
-// ERROR PAGE FALLBACK COMPONENT
-// =============================================================================
-
-function ErrorPage({ error, resetErrorBoundary }) {
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Algo salió mal</h1>
-        <p className="text-gray-600 mb-6">Lo sentimos, ocurrió un error inesperado. Por favor intenta de nuevo.</p>
-        {error?.message && (
-          <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3 mb-6 font-mono">{error.message}</p>
-        )}
-        <button
-          onClick={resetErrorBoundary}
-          className="w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors"
-        >
-          Intentar de nuevo
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // --- MOCK DATA: LOCATIONS ---
 const CITIES = [
@@ -171,12 +133,34 @@ const PROFESSIONALS = [
 ];
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
   // Navigation & View State
-  const [view, setView] = useState('home');
   const [searchMode, setSearchMode] = useState('homes'); // 'homes' | 'pros'
-  const [params, setParams] = useState({});
   const [searchText, setSearchText] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Helper to get current view from location
+  const getCurrentView = () => {
+    const path = location.pathname;
+    if (path === '/') return 'home';
+    if (path.startsWith('/search/homes')) return 'search-homes';
+    if (path.startsWith('/search/pros')) return 'search-pros';
+    if (path.startsWith('/verify')) return 'verify';
+    if (path.startsWith('/plans')) return 'plans';
+    if (path.startsWith('/create-account')) return 'create-account';
+    if (path.startsWith('/confirm-subscription')) return 'confirm-subscription';
+    if (path.startsWith('/dashboard')) return 'dashboard';
+    if (path.startsWith('/login')) return 'login';
+    if (path.startsWith('/seller-dashboard')) return 'seller-dashboard';
+    if (path.startsWith('/marketplace')) return 'marketplace';
+    if (path.startsWith('/listing/')) return 'listing-detail';
+    if (path.startsWith('/messages')) return 'messages';
+    return 'home';
+  };
+  
+  const view = getCurrentView();
 
   // Auth State - restore from localStorage on mount
   const [user, setUser] = useState(() => {
@@ -204,8 +188,39 @@ export default function App() {
 
   // Centralized navigation function
   const navigateTo = (targetView, viewParams = {}) => {
-    setParams(viewParams);
-    setView(targetView);
+    const routeMap = {
+      'home': '/',
+      'search-homes': '/search/homes',
+      'search-pros': '/search/pros',
+      'verify': '/verify',
+      'plans': '/plans',
+      'create-account': '/create-account',
+      'confirm-subscription': '/confirm-subscription',
+      'dashboard': '/dashboard',
+      'login': '/login',
+      'seller-dashboard': '/seller-dashboard',
+      'create-listing': '/seller-dashboard/create',
+      'edit-listing': `/seller-dashboard/edit/${viewParams.listingId || ''}`,
+      'marketplace': '/marketplace',
+      'listing-detail': `/listing/${viewParams.listingId || ''}`,
+      'messages': '/messages'
+    };
+    
+    let path = routeMap[targetView] || '/';
+    
+    // Add query params if needed
+    const searchParams = new URLSearchParams();
+    if (viewParams.cityId) searchParams.set('cityId', viewParams.cityId);
+    if (viewParams.catId) searchParams.set('catId', viewParams.catId);
+    const queryString = searchParams.toString();
+    if (queryString) path += `?${queryString}`;
+    
+    navigate(path);
+  };
+  
+  // Helper function to replace setView calls
+  const setView = (targetView, viewParams = {}) => {
+    navigateTo(targetView, viewParams);
   };
 
   // Verify user session on mount and fetch subscription status
@@ -295,7 +310,7 @@ export default function App() {
           return (
             <div 
               key={cat.id} 
-              onClick={() => { setSearchMode('pros'); setParams({ catId: cat.id }); setView('search-pros'); }} 
+              onClick={() => { setSearchMode('pros'); navigateTo('search-pros', { catId: cat.id }); }} 
               className="group bg-white p-6 rounded-2xl shadow-md hover:shadow-xl border border-gray-100 cursor-pointer transition-all duration-300 hover:-translate-y-1"
             >
               <div className="flex items-center gap-4">
@@ -316,14 +331,16 @@ export default function App() {
 
   // Homes list view
   const HomesView = () => {
+    const [searchParams] = useSearchParams();
     const [localSearch, setLocalSearch] = useState('');
     const [homeCat, setHomeCat] = useState('all');
+    const cityId = searchParams.get('cityId');
 
     const filtered = listings.filter((l) => {
       const txt = (l.title + ' ' + l.description).toLowerCase();
       const matchesText = txt.includes(localSearch.toLowerCase());
       const matchesCat = homeCat === 'all' ? true : l.category === homeCat;
-      const matchesCity = !params.cityId || l.city_id === params.cityId;
+      const matchesCity = !cityId || l.city_id === cityId;
       return matchesText && matchesCat && matchesCity;
     });
 
@@ -363,7 +380,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filtered.length > 0 ? filtered.map((l) => (
-            <ListingCard key={l.id} listing={l} formatMXN={formatMXN} onDetails={(li) => { setParams({ listingId: li.id }); setView('listing-detail'); }} />
+            <ListingCard key={l.id} listing={l} formatMXN={formatMXN} onDetails={(li) => { navigateTo('listing-detail', { listingId: li.id }); }} />
           )) : (
             <div className="col-span-full text-center py-12">
               <div className="text-gray-400 mb-4">
@@ -381,11 +398,13 @@ export default function App() {
 
   // Professionals view
   const ProsView = () => {
+    const [searchParams] = useSearchParams();
     const [localSearch, setLocalSearch] = useState('');
+    const catId = searchParams.get('catId');
     const filtered = professionals.filter((p) => {
       const txt = (p.name + ' ' + p.title + ' ' + p.description).toLowerCase();
       const matchesText = txt.includes(localSearch.toLowerCase());
-      const matchesCat = !params.catId || p.category === params.catId;
+      const matchesCat = !catId || p.category === catId;
       return matchesText && matchesCat;
     });
 
@@ -423,7 +442,7 @@ export default function App() {
                 </svg>
               </div>
               <p className="text-gray-500 text-lg">{lang === 'en' ? 'No professionals found matching your criteria.' : 'No se encontraron profesionales con sus criterios.'}</p>
-              <button onClick={() => { setParams({}); setLocalSearch(''); }} className="mt-4 text-indigo-600 font-medium hover:text-indigo-700">{lang === 'en' ? 'Clear filters' : 'Limpiar filtros'}</button>
+              <button onClick={() => { navigate('/search/pros'); setLocalSearch(''); }} className="mt-4 text-indigo-600 font-medium hover:text-indigo-700">{lang === 'en' ? 'Clear filters' : 'Limpiar filtros'}</button>
             </div>
           )}
         </div>
@@ -478,7 +497,7 @@ export default function App() {
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-2">{lang === 'en' ? 'Application Submitted!' : '¡Solicitud Enviada!'}</h3>
             <p className="text-gray-600 max-w-md mx-auto">{lang === 'en' ? 'We will review your documents and get back to you within 2-3 business days.' : 'Revisaremos tus documentos y te contactaremos en 2-3 días hábiles.'}</p>
-            <button onClick={() => setView('home')} className="mt-6 text-indigo-600 font-medium hover:text-indigo-700">{lang === 'en' ? '← Back to Home' : '← Volver al Inicio'}</button>
+            <button onClick={() => navigate('/')} className="mt-6 text-indigo-600 font-medium hover:text-indigo-700">{lang === 'en' ? '← Back to Home' : '← Volver al Inicio'}</button>
           </div>
         </section>
       );
@@ -614,235 +633,128 @@ export default function App() {
     );
   };
 
-  // Main render
-  // Full-page views that don't show the standard navbar/hero/footer
-  const fullPageViews = ['plans', 'create-account', 'confirm-subscription', 'dashboard', 'login', 'seller-dashboard', 'create-listing', 'edit-listing', 'marketplace', 'listing-detail', 'messages'];
-  const isFullPage = fullPageViews.includes(view);
+  // Main layout component for routes that show navbar/hero/footer
+  const MainLayout = ({ children }) => (
+    <div className="min-h-screen bg-gray-50">
+        <Navbar
+          view={view}
+          setView={setView}
+          searchMode={searchMode}
+          setSearchMode={setSearchMode}
+          lang={lang}
+          setLang={setLang}
+          user={user}
+          setUser={setUser}
+          mobileMenuOpen={mobileMenuOpen}
+          setMobileMenuOpen={setMobileMenuOpen}
+        />
+        <Hero
+          searchMode={searchMode}
+          setSearchMode={setSearchMode}
+          searchText={searchText}
+          setSearchText={setSearchText}
+          setView={setView}
+          lang={lang}
+        />
+        {children}
+        <footer className="mt-16 bg-gradient-to-b from-gray-50 to-gray-100 border-t border-gray-200">
+          <div className="max-w-6xl mx-auto px-4 py-12">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+              {/* Brand Section */}
+              <div className="md:col-span-2">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <span className="text-white font-bold text-xl">M</span>
+                  </div>
+                  <span className="text-xl font-bold text-gray-900">Mundo Cerca</span>
+                </div>
+                <p className="text-gray-600 leading-relaxed">
+                  {lang === 'en' 
+                    ? 'Connecting people with homes and trusted professionals across Mexico. Your journey to finding the perfect home starts here.'
+                    : 'Conectando personas con hogares y profesionales de confianza en todo México. Tu viaje para encontrar el hogar perfecto comienza aquí.'}
+                </p>
+                <div className="flex gap-4 mt-6">
+                  <a href="#" className="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-indigo-600 hover:shadow-lg transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+                  </a>
+                  <a href="#" className="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-indigo-600 hover:shadow-lg transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                  </a>
+                  <a href="#" className="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-indigo-600 hover:shadow-lg transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg>
+                  </a>
+                </div>
+              </div>
 
-  // Render full-page views
-  if (view === 'plans') {
-    return <PlansPage setView={setView} setSelectedPlan={setSelectedPlan} lang={lang} user={user} />;
-  }
-  if (view === 'create-account') {
-    return <CreateAccountPage selectedPlan={selectedPlan} setView={setView} setUser={setUser} lang={lang} />;
-  }
-  if (view === 'confirm-subscription') {
-    return <ConfirmSubscriptionPage selectedPlan={selectedPlan} setView={setView} setUser={setUser} lang={lang} />;
-  }
-  if (view === 'dashboard') {
-    return <Dashboard user={user} setUser={setUser} setView={setView} navigateTo={navigateTo} lang={lang} />;
-  }
-  if (view === 'login') {
-    return <Auth onLogin={(u) => { 
-      setUser(u); 
-      // Redirect to dashboard if user has active subscription, otherwise home
-      if (u.subscriptionActive || u.subscriptionPlan) {
-        setView('dashboard');
-      } else {
-        setView('home');
-      }
-    }} />;
-  }
-  
-  // New Marketplace Views
-  if (view === 'seller-dashboard') {
-    return (
-      <SellerDashboard 
-        user={user}
-        setUser={setUser}
-        setView={(v, p) => { if (p) setParams(p); setView(v); }}
-        lang={lang}
-        onBack={() => setView('dashboard')}
-        onCreateListing={() => setView('create-listing')}
-        onEditListing={(listing) => { setParams({ listingId: listing.id }); setView('edit-listing'); }}
-        onViewMessages={() => setView('messages')}
-      />
-    );
-  }
-  
-  if (view === 'create-listing') {
-    return (
-      <ListingForm 
-        user={user}
-        onBack={() => setView('seller-dashboard')}
-        onSuccess={(listing) => {
-          addToast(lang === 'en' ? 'Listing created successfully!' : '¡Anuncio creado exitosamente!', 'success');
-          setView('seller-dashboard');
-        }}
-      />
-    );
-  }
-  
-  if (view === 'edit-listing') {
-    return (
-      <ListingForm 
-        user={user}
-        listingId={params.listingId}
-        onBack={() => setView('seller-dashboard')}
-        onSuccess={(listing) => {
-          addToast(lang === 'en' ? 'Listing updated successfully!' : '¡Anuncio actualizado exitosamente!', 'success');
-          setView('seller-dashboard');
-        }}
-      />
-    );
-  }
-  
-  if (view === 'marketplace') {
-    return (
-      <Marketplace 
-        user={user}
-        onBack={() => setView('home')}
-        onViewListing={(listing) => { setParams({ listingId: listing.id }); setView('listing-detail'); }}
-      />
-    );
-  }
-  
-  if (view === 'listing-detail') {
-    return (
-      <ListingDetail 
-        listingId={params.listingId}
-        user={user}
-        onBack={() => setView('marketplace')}
-        onMessage={(listing) => { setParams({ contactListing: listing }); }}
-      />
-    );
-  }
-  
-  if (view === 'messages') {
-    return (
-      <MessagingPage 
-        user={user}
-        onBack={() => setView('seller-dashboard')}
-      />
-    );
-  }
+              {/* Links Sections */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-4">{lang === 'en' ? 'Platform' : 'Plataforma'}</h4>
+                <ul className="space-y-3">
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Search Homes' : 'Buscar Casas'}</a></li>
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Find Professionals' : 'Encontrar Profesionales'}</a></li>
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Pricing' : 'Precios'}</a></li>
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Support' : 'Soporte'}</a></li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-4">{lang === 'en' ? 'Help' : 'Ayuda'}</h4>
+                <ul className="space-y-3">
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Help Center' : 'Centro de Ayuda'}</a></li>
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Trust & Safety' : 'Confianza y Seguridad'}</a></li>
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Contact Us' : 'Contáctanos'}</a></li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-4">{lang === 'en' ? 'Legal' : 'Legal'}</h4>
+                <ul className="space-y-3">
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Terms of Service' : 'Términos de Servicio'}</a></li>
+                  <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Privacy Policy' : 'Política de Privacidad'}</a></li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Bottom Bar */}
+            <div className="mt-12 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+              <p className="text-gray-500 text-sm">
+                © {new Date().getFullYear()} Mundo Cerca. {lang === 'en' ? 'All rights reserved.' : 'Todos los derechos reservados.'}
+              </p>
+              <p className="text-gray-500 text-sm">
+                {lang === 'en' ? 'Made with ❤️ in Mexico' : 'Hecho con ❤️ en México'}
+              </p>
+            </div>
+          </div>
+        </footer>
+
+        {/* Toast Notifications */}
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
+      </div>
+  );
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorPage}>
-    <div className="min-h-screen bg-gray-50">
-      <Navbar
-        view={view}
-        setView={setView}
-        searchMode={searchMode}
-        setSearchMode={setSearchMode}
-        lang={lang}
-        setLang={setLang}
-        user={user}
-        setUser={setUser}
-        mobileMenuOpen={mobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-      />
-      <Hero
-        searchMode={searchMode}
-        setSearchMode={setSearchMode}
-        searchText={searchText}
-        setSearchText={setSearchText}
-        setView={setView}
-        lang={lang}
-      />
-      <CategoryGrid />
-
-      {view === 'home' && (
-        <section className="max-w-6xl mx-auto px-4 py-12">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900">{lang === 'en' ? 'Featured Homes' : 'Casas Destacadas'}</h3>
-              <p className="text-gray-600 mt-1">{lang === 'en' ? 'Discover your perfect place to live' : 'Descubre tu lugar perfecto para vivir'}</p>
-            </div>
-            <button 
-              onClick={() => { setSearchMode('homes'); setView('search-homes'); }} 
-              className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
-            >
-              {lang === 'en' ? 'View all' : 'Ver todos'}
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {listings.slice(0, 3).map((l) => (
-              <ListingCard key={l.id} listing={l} compact={true} formatMXN={formatMXN} onDetails={(li) => { setParams({ listingId: li.id }); setView('listing-detail'); }} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {view === 'search-homes' && <HomesView />}
-      {view === 'search-pros' && <ProsView />}
-      {view === 'verify' && <VerificationPage />}
-
-      <footer className="mt-16 bg-gradient-to-b from-gray-50 to-gray-100 border-t border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
-            {/* Brand Section */}
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">M</span>
-                </div>
-                <span className="text-xl font-bold text-gray-900">Mundo Cerca</span>
-              </div>
-              <p className="text-gray-600 leading-relaxed">
-                {lang === 'en' 
-                  ? 'Connecting people with homes and trusted professionals across Mexico. Your journey to finding the perfect home starts here.'
-                  : 'Conectando personas con hogares y profesionales de confianza en todo México. Tu viaje para encontrar el hogar perfecto comienza aquí.'}
-              </p>
-              <div className="flex gap-4 mt-6">
-                <a href="#" className="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-indigo-600 hover:shadow-lg transition-all">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
-                </a>
-                <a href="#" className="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-indigo-600 hover:shadow-lg transition-all">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-                </a>
-                <a href="#" className="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-indigo-600 hover:shadow-lg transition-all">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg>
-                </a>
-              </div>
-            </div>
-
-            {/* Links Sections */}
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">{lang === 'en' ? 'Platform' : 'Plataforma'}</h4>
-              <ul className="space-y-3">
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Search Homes' : 'Buscar Casas'}</a></li>
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Find Professionals' : 'Encontrar Profesionales'}</a></li>
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Pricing' : 'Precios'}</a></li>
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Support' : 'Soporte'}</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">{lang === 'en' ? 'Help' : 'Ayuda'}</h4>
-              <ul className="space-y-3">
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Help Center' : 'Centro de Ayuda'}</a></li>
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Trust & Safety' : 'Confianza y Seguridad'}</a></li>
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Contact Us' : 'Contáctanos'}</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">{lang === 'en' ? 'Legal' : 'Legal'}</h4>
-              <ul className="space-y-3">
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Terms of Service' : 'Términos de Servicio'}</a></li>
-                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">{lang === 'en' ? 'Privacy Policy' : 'Política de Privacidad'}</a></li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Bottom Bar */}
-          <div className="mt-12 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-500 text-sm">
-              © {new Date().getFullYear()} Mundo Cerca. {lang === 'en' ? 'All rights reserved.' : 'Todos los derechos reservados.'}
-            </p>
-            <p className="text-gray-500 text-sm">
-              {lang === 'en' ? 'Made with ❤️ in Mexico' : 'Hecho con ❤️ en México'}
-            </p>
-          </div>
-        </div>
-      </footer>
-
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-    </div>
-    </ErrorBoundary>
+    <AppRoutes
+      navigateTo={navigateTo}
+      setView={setView}
+      user={user}
+      setUser={setUser}
+      lang={lang}
+      selectedPlan={selectedPlan}
+      setSelectedPlan={setSelectedPlan}
+      view={view}
+      searchMode={searchMode}
+      setSearchMode={setSearchMode}
+      searchText={searchText}
+      setSearchText={setSearchText}
+      mobileMenuOpen={mobileMenuOpen}
+      setMobileMenuOpen={setMobileMenuOpen}
+      listings={listings}
+      professionals={professionals}
+      formatMXN={formatMXN}
+      MainLayout={MainLayout}
+      CategoryGrid={CategoryGrid}
+      HomesView={HomesView}
+      ProsView={ProsView}
+      VerificationPage={VerificationPage}
+      addToast={addToast}
+    />
   );
 }
