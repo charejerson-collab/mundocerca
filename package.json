@@ -1,6 +1,13 @@
 {
+  "name": "mundocerca-root",
+  "version": "1.0.0",
+  "private": true,
   "engines": {
     "node": "24.x"
+  },
+  "scripts": {
+    "dev": "echo 'No root dev script'",
+    "build": "echo 'No root build script'"
   },
   "dependencies": {
     "react-router-dom": "^7.10.1"

@@ -5,5 +5,10 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "**": {
+      "runtime": "nodejs24.x"
+    }
+  }
 }
